@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { ResearchItem, Theme, Concept, Edge, Attachment, Setting, Suggestion } from '@/types'
+import type { ResearchItem, Theme, Concept, Edge, Attachment, Setting, Suggestion, Rejection } from '@/types'
 
 class SidecarDB extends Dexie {
   items!: EntityTable<ResearchItem, 'id'>
@@ -9,6 +9,7 @@ class SidecarDB extends Dexie {
   attachments!: EntityTable<Attachment, 'id'>
   settings!: EntityTable<Setting, 'key'>
   suggestions!: EntityTable<Suggestion, 'id'>
+  rejections!: EntityTable<Rejection, 'id'>
 
   constructor() {
     super('SidecarDB')
@@ -35,6 +36,16 @@ class SidecarDB extends Dexie {
       attachments: '++id, itemId, createdAt',
       settings: 'key',
       suggestions: '++id, kind, scanId, themeId, createdAt',
+    })
+    this.version(4).stores({
+      items: '++id, url, domain, date, createdAt, *themeIds, *conceptIds',
+      themes: '++id, name',
+      concepts: '++id, name',
+      edges: '++id, fromId, toId, type',
+      attachments: '++id, itemId, createdAt',
+      settings: 'key',
+      suggestions: '++id, kind, scanId, themeId, createdAt',
+      rejections: '++id, kind, itemId, themeId, proposedNameLower, [itemId+themeId]',
     })
   }
 }

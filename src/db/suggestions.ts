@@ -1,6 +1,6 @@
 import { db } from './schema'
 import { THEME_COLORS, assignTheme } from './themes'
-import type { Suggestion } from '@/types'
+import type { Suggestion, Rejection } from '@/types'
 import type { ScanResult } from '@/ai/scan'
 
 export async function pickNextThemeColor(): Promise<string> {
@@ -50,7 +50,37 @@ export async function replaceQueue(result: ScanResult): Promise<string> {
   return scanId
 }
 
+async function recordRejection(s: Suggestion): Promise<void> {
+  const now = Date.now()
+  if (s.kind === 'assignment' && s.itemId != null && s.themeId != null) {
+    // Skip if a rejection for this pair already exists.
+    const dup = await db.rejections
+      .where('[itemId+themeId]').equals([s.itemId, s.themeId]).count()
+    if (dup === 0) {
+      await db.rejections.add({
+        kind: 'assignment',
+        itemId: s.itemId,
+        themeId: s.themeId,
+        createdAt: now,
+      })
+    }
+  } else if (s.kind === 'proposal' && s.proposedName) {
+    const nameLower = s.proposedName.trim().toLowerCase()
+    const dup = await db.rejections
+      .where('proposedNameLower').equals(nameLower).count()
+    if (dup === 0) {
+      await db.rejections.add({
+        kind: 'proposal',
+        proposedNameLower: nameLower,
+        createdAt: now,
+      })
+    }
+  }
+}
+
 export async function rejectSuggestion(id: number): Promise<void> {
+  const s = await db.suggestions.get(id)
+  if (s) await recordRejection(s)
   await db.suggestions.delete(id)
 }
 
@@ -76,10 +106,30 @@ export async function bulkApproveByTheme(themeId: number): Promise<void> {
 }
 
 export async function bulkRejectByTheme(themeId: number): Promise<void> {
+  const matches = await db.suggestions
+    .where('themeId').equals(themeId)
+    .filter((s: Suggestion) => s.kind === 'assignment')
+    .toArray()
+  for (const s of matches) await recordRejection(s)
   await db.suggestions
     .where('themeId').equals(themeId)
     .filter((s: Suggestion) => s.kind === 'assignment')
     .delete()
+}
+
+export async function getRejections(): Promise<{
+  proposedNamesLower: string[]
+  assignmentPairs: Array<[number, number]>
+}> {
+  const all = await db.rejections.toArray()
+  return {
+    proposedNamesLower: all
+      .filter((r: Rejection) => r.kind === 'proposal' && !!r.proposedNameLower)
+      .map((r: Rejection) => r.proposedNameLower!),
+    assignmentPairs: all
+      .filter((r: Rejection) => r.kind === 'assignment' && r.itemId != null && r.themeId != null)
+      .map((r: Rejection) => [r.itemId!, r.themeId!] as [number, number]),
+  }
 }
 
 interface ApproveProposalChanges {

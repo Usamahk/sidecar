@@ -57,6 +57,19 @@ export interface Setting {
 
 export type SuggestionKind = 'assignment' | 'proposal'
 
+export interface Rejection {
+  id?: number
+  kind: SuggestionKind
+  createdAt: number
+
+  // For 'assignment': the (item, theme) pair the user said no to
+  itemId?: number
+  themeId?: number
+
+  // For 'proposal': the normalized lowercase name we should not re-suggest
+  proposedNameLower?: string
+}
+
 export interface Suggestion {
   id?: number
   kind: SuggestionKind

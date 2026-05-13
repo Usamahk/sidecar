@@ -26,7 +26,24 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 - All captured items appear in reverse-chronological order by default
 - Toggle to oldest-first with the sort button at the top of the timeline
 - Search across all item content, notes, URLs, and page titles using the search bar (fuzzy search powered by Fuse.js)
-- Result count shown when a search is active; clear the search to return to the full timeline
+- Filter by theme via the chip strip above the list — single-select, intersects with search
+- Result count shown when a search or filter is active; clear it to return to the full timeline
+
+### Themes & organization
+- Create named, color-coded theme buckets from the Themes tab — 10-color palette, recolorable any time
+- Inline rename, color-swatch picker, and delete (cascades — also drops from all tagged items)
+- Click the **+ theme** chip on any item to assign an existing theme, or type a new name + `Enter` to create + assign in one step
+- Expand any theme on the Themes tab (click its item count) to see all items tagged with it as full cards, newest first
+- Each item card shows its assigned theme chips; click the `×` on a chip to unassign
+
+### AI auto-categorize
+- One-click **Scan** from the Themes tab sends your corpus to Claude (default: Sonnet 4.6; optional: Haiku 4.5)
+- Cost-confirm popover before sending shows the item count and a rough input-token estimate
+- Returns two things in one structured call (Anthropic tool-use): **tag suggestions** to existing themes (with confidence) and **proposals** for new themes (with supporting items)
+- Inline **review queue** on the Themes tab — nothing auto-applies:
+  - Proposals: editable name + recolorable swatch before approve; approve creates the theme and tags its supporting items in one go
+  - Tag suggestions: grouped by theme with per-row ✓/✗ and bulk ✓ all / ✗ all per group
+- **Rejection memory** — rejected proposals and assignments are remembered and excluded from the next scan; self-heals if you later manually create/assign the same thing
 
 ### Per-item editing
 - **URL** — click to edit inline; domain and favicon shown in display mode
@@ -40,7 +57,8 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 - Preference is persisted across sessions
 
 ### Settings & export
-- Store your Anthropic API key locally (used by the AI agent when it ships)
+- Store your Anthropic API key locally (used by the scan and the upcoming agent)
+- Pick the scan model — Sonnet 4.6 (default) or Haiku 4.5 (cheaper, rougher proposals)
 - Export all data as **JSON** (full backup of items, themes, edges, and concepts)
 - Export as **Markdown** (one entry per item, Obsidian-compatible YAML frontmatter)
 - Clear all data from the danger zone
@@ -49,11 +67,8 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 
 ## Coming soon
 
-### Themes & organization (Phase 2)
-Create named, color-coded theme buckets and assign items to them. Filter the timeline by theme. Theme chips on each item card for quick visual scanning.
-
 ### AI research agent (Phase 3)
-A Claude-powered chat interface (claude-opus-4-7) built into the Agent tab. The agent can search across your captured items and the web simultaneously, and has full context of your research corpus when answering. Auto-tagging on capture will suggest themes and extract key concepts.
+A Claude-powered chat interface built into the Agent tab. The agent will search across your captured items and the web simultaneously, with full context of your research corpus when answering.
 
 ### Visual knowledge graph (Phase 4)
 An interactive node-link diagram of your entire research corpus. Items, themes, and AI-extracted concepts appear as nodes; relationships between them as edges. Click any node to open the item or filter the timeline. Node size reflects connection count.
@@ -70,8 +85,8 @@ An interactive node-link diagram of your entire research corpus. Items, themes, 
 | Storage | Dexie.js (IndexedDB) |
 | Search | Fuse.js |
 | Markdown | react-markdown + remark-gfm |
+| AI | Anthropic SDK (claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, lazy-loaded |
 | Graph (upcoming) | react-force-graph-2d |
-| AI (upcoming) | Anthropic SDK (claude-opus-4-7) |
 | Export | file-saver |
 
 ---
@@ -98,4 +113,4 @@ After reloading the extension, refresh any open tabs to reinitialise the content
 
 ## Data & privacy
 
-Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and use the AI agent (at which point only your query and a summary of relevant items are sent to the Anthropic API). The API key itself never leaves your browser.
+Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and run **Scan** (which sends item snippets + notes to the Anthropic API for categorization) or use the upcoming agent. A cost-confirm popover shows the item count and rough token estimate before each scan. The API key itself never leaves your browser.

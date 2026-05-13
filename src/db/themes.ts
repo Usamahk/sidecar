@@ -10,7 +10,12 @@ export const THEME_COLORS = [
 export async function addTheme(name: string, description = ''): Promise<number> {
   const existing = await db.themes.count()
   const color = THEME_COLORS[existing % THEME_COLORS.length]
-  return db.themes.add({ name, description, color, createdAt: Date.now() })
+  const id = await db.themes.add({ name, description, color, createdAt: Date.now() })
+  // Self-heal: clear any prior rejection of this proposed name.
+  await db.rejections
+    .where('proposedNameLower').equals(name.trim().toLowerCase())
+    .delete()
+  return id
 }
 
 export async function updateTheme(id: number, changes: Partial<Theme>): Promise<void> {
@@ -29,6 +34,10 @@ export async function deleteTheme(id: number): Promise<void> {
   }
   await db.edges.where('fromId').equals(id).delete()
   await db.edges.where('toId').equals(id).delete()
+  // Drop any rejections referencing this theme — they're meaningless now.
+  await db.rejections.where('themeId').equals(id).delete()
+  // Also drop any pending suggestions for this theme.
+  await db.suggestions.where('themeId').equals(id).delete()
 }
 
 export async function assignTheme(itemId: number, themeId: number): Promise<void> {
@@ -44,6 +53,8 @@ export async function assignTheme(itemId: number, themeId: number): Promise<void
     toId: themeId, toType: 'theme',
     type: 'item-theme', weight: 1,
   })
+  // Self-heal: clear any prior rejection of this exact (item, theme) pair.
+  await db.rejections.where('[itemId+themeId]').equals([itemId, themeId]).delete()
 }
 
 export async function removeTheme(itemId: number, themeId: number): Promise<void> {

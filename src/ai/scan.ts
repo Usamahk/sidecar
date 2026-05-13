@@ -1,8 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import { db } from '@/db/schema'
+import { getRejections } from '@/db/suggestions'
 import type { ResearchItem, Theme } from '@/types'
 
-const MODEL = 'claude-sonnet-4-6'
+export const DEFAULT_SCAN_MODEL = 'claude-sonnet-4-6'
 const MAX_CONTENT_CHARS = 800
 
 export interface ScanInputItem {
@@ -68,6 +69,11 @@ async function getApiKey(): Promise<string> {
   return key
 }
 
+async function getScanModel(): Promise<string> {
+  const row = await db.settings.get('scanModel')
+  return row?.value?.trim() || DEFAULT_SCAN_MODEL
+}
+
 const tool: Anthropic.Tool = {
   name: 'record_suggestions',
   description:
@@ -111,7 +117,16 @@ const tool: Anthropic.Tool = {
   },
 }
 
-function buildPrompt(items: ScanInputItem[], themes: ScanInputTheme[]): string {
+interface RejectionContext {
+  proposedNamesLower: string[]
+  assignmentPairs: Array<[number, number]>
+}
+
+function buildPrompt(
+  items: ScanInputItem[],
+  themes: ScanInputTheme[],
+  rejections: RejectionContext
+): string {
   const themesBlock = themes.length === 0
     ? '(no existing themes yet — focus entirely on proposing new ones)'
     : themes.map((t) =>
@@ -129,7 +144,7 @@ function buildPrompt(items: ScanInputItem[], themes: ScanInputTheme[]): string {
     return lines.join('\n')
   }).join('\n\n')
 
-  return [
+  const lines = [
     'You are organizing a personal research corpus. Two jobs:',
     '',
     '1. ASSIGN — for each item that clearly belongs in an existing theme, return an assignment. Be selective; confidence ≥ 0.6 only. Multiple themes per item are allowed.',
@@ -137,12 +152,27 @@ function buildPrompt(items: ScanInputItem[], themes: ScanInputTheme[]): string {
     '',
     'Existing themes:',
     themesBlock,
-    '',
-    'Items to organize:',
-    itemsBlock,
-    '',
-    'Call the record_suggestions tool with both arrays. If nothing fits a bucket, return an empty array for it.',
-  ].join('\n')
+  ]
+
+  if (rejections.proposedNamesLower.length > 0) {
+    lines.push('')
+    lines.push('Do NOT propose any of these theme names (the user previously rejected them):')
+    lines.push(rejections.proposedNamesLower.map((n) => `- ${n}`).join('\n'))
+  }
+
+  if (rejections.assignmentPairs.length > 0) {
+    lines.push('')
+    lines.push('Do NOT suggest these specific item→theme assignments (the user rejected them):')
+    lines.push(rejections.assignmentPairs.map(([i, t]) => `- item ${i} → theme ${t}`).join('\n'))
+  }
+
+  lines.push('')
+  lines.push('Items to organize:')
+  lines.push(itemsBlock)
+  lines.push('')
+  lines.push('Call the record_suggestions tool with both arrays. If nothing fits a bucket, return an empty array for it.')
+
+  return lines.join('\n')
 }
 
 export async function scanCorpus(
@@ -153,8 +183,15 @@ export async function scanCorpus(
     return { proposals: [], assignments: [] }
   }
 
-  const apiKey = await getApiKey()
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+  const [apiKey, model, rejections] = await Promise.all([
+    getApiKey(),
+    getScanModel(),
+    getRejections(),
+  ])
+
+  // Dynamic import keeps the ~500KB SDK out of the initial side-panel bundle.
+  const { default: AnthropicSDK } = await import('@anthropic-ai/sdk')
+  const client = new AnthropicSDK({ apiKey, dangerouslyAllowBrowser: true })
 
   const inputItems = prepareItemsForScan(items)
   const inputThemes: ScanInputTheme[] = themes.map((t) => ({
@@ -166,11 +203,11 @@ export async function scanCorpus(
   let response: Anthropic.Message
   try {
     response = await client.messages.create({
-      model: MODEL,
+      model,
       max_tokens: 4096,
       tools: [tool],
       tool_choice: { type: 'tool', name: 'record_suggestions' },
-      messages: [{ role: 'user', content: buildPrompt(inputItems, inputThemes) }],
+      messages: [{ role: 'user', content: buildPrompt(inputItems, inputThemes, rejections) }],
     })
   } catch (err) {
     throw new ScanError(
@@ -190,21 +227,28 @@ export async function scanCorpus(
   const validItemIds = new Set(items.map((i) => i.id!))
   const validThemeIds = new Set(themes.map((t) => t.id!))
 
+  const rejectedPairs = new Set(
+    rejections.assignmentPairs.map(([i, t]) => `${i}:${t}`)
+  )
+  const rejectedNames = new Set(rejections.proposedNamesLower)
+
   const assignments = (raw.assignments ?? []).filter(
     (a) =>
       typeof a.itemId === 'number' && validItemIds.has(a.itemId) &&
       typeof a.themeId === 'number' && validThemeIds.has(a.themeId) &&
-      typeof a.confidence === 'number'
+      typeof a.confidence === 'number' &&
+      !rejectedPairs.has(`${a.itemId}:${a.themeId}`)
   )
 
   const existingNames = new Set(themes.map((t) => t.name.trim().toLowerCase()))
-  const proposals = (raw.proposals ?? []).filter((p) =>
-    typeof p.name === 'string' &&
-    p.name.trim().length > 0 &&
-    !existingNames.has(p.name.trim().toLowerCase()) &&
-    Array.isArray(p.supportingItemIds) &&
-    p.supportingItemIds.filter((id) => validItemIds.has(id)).length >= 2
-  ).map((p) => ({
+  const proposals = (raw.proposals ?? []).filter((p) => {
+    if (typeof p.name !== 'string' || p.name.trim().length === 0) return false
+    const nameLower = p.name.trim().toLowerCase()
+    if (existingNames.has(nameLower)) return false
+    if (rejectedNames.has(nameLower)) return false
+    return Array.isArray(p.supportingItemIds) &&
+      p.supportingItemIds.filter((id) => validItemIds.has(id)).length >= 2
+  }).map((p) => ({
     name: p.name.trim(),
     description: (p.description ?? '').trim(),
     supportingItemIds: p.supportingItemIds.filter((id) => validItemIds.has(id)),
