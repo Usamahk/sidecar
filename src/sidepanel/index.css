@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Light mode (default) ───────────────────────── */
+  :root {
+    --surface:     #ffffff;
+    --surface-1:   #f7f7f8;
+    --surface-2:   #eeeeef;
+    --surface-3:   #e4e4e7;
+    --ink:         #18181b;
+    --ink-2:       #52525b;
+    --ink-3:       #a1a1aa;
+    --line:        #e4e4e7;
+    --line-strong: #d4d4d8;
+  }
+
+  /* ── Dark mode ──────────────────────────────────── */
+  .dark {
+    --surface:     #0f0f0f;
+    --surface-1:   #1a1a1a;
+    --surface-2:   #242424;
+    --surface-3:   #2e2e2e;
+    --ink:         #e4e4e7;
+    --ink-2:       #a1a1aa;
+    --ink-3:       #52525b;
+    --line:        #27272a;
+    --line-strong: #3f3f46;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--surface);
+    color: var(--ink);
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+}
