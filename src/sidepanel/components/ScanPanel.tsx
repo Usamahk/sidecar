@@ -3,12 +3,15 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/schema'
 import { scanCorpus, ScanError } from '@/ai/scan'
 import { replaceQueue } from '@/db/suggestions'
+import type { ResearchItem } from '@/types'
 
 type Status = 'idle' | 'confirming' | 'scanning' | 'error'
+type Scope = 'untagged' | 'all'
 
 export function ScanPanel() {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [scope, setScope] = useState<Scope>('untagged')
   const popoverRef = useRef<HTMLDivElement>(null)
 
   const itemCount = useLiveQuery(() => db.items.count(), [])
@@ -16,8 +19,23 @@ export function ScanPanel() {
   const apiKeyRow = useLiveQuery(() => db.settings.get('anthropicApiKey'), [])
   const lastScanRow = useLiveQuery(() => db.settings.get('lastScanAt'), [])
 
+  const untaggedCount = useLiveQuery(
+    () => db.items.filter((i: ResearchItem) => (i.themeIds?.length ?? 0) === 0).count(),
+    []
+  )
+
+  const lastScanAt = lastScanRow?.value ? Number(lastScanRow.value) : null
+
+  // If no items are untagged, prefer scanning all so the chip strip isn't a dead end.
+  useEffect(() => {
+    if (untaggedCount === 0 && scope === 'untagged' && (itemCount ?? 0) > 0) {
+      setScope('all')
+    }
+  }, [untaggedCount, itemCount, scope])
+
+  const effectiveCount = scope === 'untagged' ? (untaggedCount ?? 0) : (itemCount ?? 0)
   const hasKey = !!apiKeyRow?.value?.trim()
-  const hasItems = (itemCount ?? 0) > 0
+  const hasItems = effectiveCount > 0
   const canScan = hasKey && hasItems && status !== 'scanning'
 
   useEffect(() => {
@@ -40,10 +58,12 @@ export function ScanPanel() {
     setStatus('scanning')
     setError(null)
     try {
-      const [items, themes] = await Promise.all([
-        db.items.toArray(),
-        db.themes.toArray(),
-      ])
+      const themes = await db.themes.toArray()
+      const items = scope === 'untagged'
+        ? await db.items
+            .filter((i: ResearchItem) => (i.themeIds?.length ?? 0) === 0)
+            .toArray()
+        : await db.items.toArray()
       const result = await scanCorpus(items, themes)
       await replaceQueue(result)
       setStatus('idle')
@@ -58,11 +78,14 @@ export function ScanPanel() {
 
   let label: string
   if (!hasKey) label = 'Set API key in Settings to scan'
-  else if (!hasItems) label = 'Add items first'
+  else if ((itemCount ?? 0) === 0) label = 'Add items first'
   else if (status === 'scanning') label = 'Scanning…'
-  else label = `Scan corpus · ${itemCount} item${itemCount !== 1 ? 's' : ''}`
+  else if (!hasItems) label = 'Everything is tagged'
+  else if (scope === 'untagged') label = `Scan · ${effectiveCount} untagged item${effectiveCount !== 1 ? 's' : ''}`
+  else label = `Scan all · ${effectiveCount} item${effectiveCount !== 1 ? 's' : ''}`
 
-  const approxTokens = Math.ceil(((itemCount ?? 0) * 350 + (themeCount ?? 0) * 80 + 1500) / 3.5)
+  const approxTokens = Math.ceil((effectiveCount * 350 + (themeCount ?? 0) * 80 + 1500) / 3.5)
+  const canPickUntagged = (untaggedCount ?? 0) > 0
 
   return (
     <div className="px-3 py-2 border-b border-line relative">
@@ -79,12 +102,29 @@ export function ScanPanel() {
           </span>
           <span className="text-ink-2">{label}</span>
         </button>
-        {lastScanRow?.value && status !== 'scanning' && (
+        {lastScanAt != null && status !== 'scanning' && (
           <span className="text-[10px] text-ink-3 flex-shrink-0">
-            {formatAgo(Number(lastScanRow.value))}
+            {formatAgo(lastScanAt)}
           </span>
         )}
       </div>
+
+      {hasKey && (itemCount ?? 0) > 0 && status !== 'scanning' && (
+        <div className="flex items-center gap-1 mt-1.5 ml-1">
+          <ScopeChip
+            label={`Untagged${canPickUntagged ? ` (${untaggedCount})` : ''}`}
+            active={scope === 'untagged'}
+            disabled={!canPickUntagged}
+            title={canPickUntagged ? 'Only items without any theme tags' : 'No untagged items'}
+            onClick={() => setScope('untagged')}
+          />
+          <ScopeChip
+            label={`All (${itemCount})`}
+            active={scope === 'all'}
+            onClick={() => setScope('all')}
+          />
+        </div>
+      )}
 
       {status === 'confirming' && canScan && (
         <div
@@ -92,10 +132,10 @@ export function ScanPanel() {
           className="absolute top-full left-3 right-3 mt-1 z-30 bg-surface-1 border border-line-strong rounded-lg shadow-lg p-3"
         >
           <p className="text-sm text-ink mb-1">
-            Send {itemCount} item{itemCount !== 1 ? 's' : ''} to Claude?
+            Send {effectiveCount} {scope === 'untagged' ? 'untagged ' : ''}item{effectiveCount !== 1 ? 's' : ''} to Claude?
           </p>
           <p className="text-xs text-ink-3 mb-3">
-            Estimated ~{approxTokens.toLocaleString()} input tokens · claude-sonnet-4-6
+            Estimated ~{approxTokens.toLocaleString()} input tokens
           </p>
           <div className="flex justify-end gap-2">
             <button
@@ -126,6 +166,32 @@ export function ScanPanel() {
         </div>
       )}
     </div>
+  )
+}
+
+interface ChipProps {
+  label: string
+  active: boolean
+  disabled?: boolean
+  title?: string
+  onClick: () => void
+}
+
+function ScopeChip({ label, active, disabled, title, onClick }: ChipProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors
+        ${active
+          ? 'bg-accent/15 border-accent text-accent'
+          : 'border-line text-ink-3 hover:text-ink-2 hover:border-line-strong'
+        }
+        disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-ink-3 disabled:hover:border-line`}
+    >
+      {label}
+    </button>
   )
 }
 
