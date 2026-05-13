@@ -55,6 +55,26 @@ export interface Setting {
   value: string
 }
 
+export type SuggestionKind = 'assignment' | 'proposal'
+
+export interface Suggestion {
+  id?: number
+  kind: SuggestionKind
+  scanId: string
+  createdAt: number
+
+  // For 'assignment': tag an existing item with an existing theme
+  itemId?: number
+  themeId?: number
+  confidence?: number   // 0..1
+
+  // For 'proposal': a new theme name + items that would belong to it
+  proposedName?: string
+  proposedDescription?: string
+  proposedColor?: string
+  supportingItemIds?: number[]
+}
+
 export type View = 'timeline' | 'themes' | 'graph' | 'agent' | 'settings'
 
 export interface TabInfo {

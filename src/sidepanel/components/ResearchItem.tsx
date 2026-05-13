@@ -5,6 +5,7 @@ import { updateItem, deleteItem } from '@/db/items'
 import { addAttachment } from '@/db/attachments'
 import { MetaEditor } from './MetaEditor'
 import { ThemeTag } from './ThemeTag'
+import { ThemePicker } from './ThemePicker'
 import { SourceTag } from './SourceTag'
 import { AttachmentList } from './AttachmentView'
 import type { ResearchItem as ResearchItemType } from '@/types'
@@ -125,10 +126,11 @@ export function ResearchItem({ item }: Props) {
           </div>
 
           <div className="px-4 pb-3 flex items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {item.themeIds.map((themeId) => (
                 <ThemeTag key={themeId} themeId={themeId} itemId={item.id!} />
               ))}
+              <ThemePicker itemId={item.id!} assignedThemeIds={item.themeIds} />
             </div>
             <button onClick={() => fileInputRef.current?.click()}
               className="flex-shrink-0 text-ink-3 hover:text-ink-2 transition-colors text-xs"
