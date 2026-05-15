@@ -38,6 +38,7 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 
 ### AI auto-categorize
 - One-click **Scan** from the Themes tab sends your corpus to Claude (default: Sonnet 4.6; optional: Haiku 4.5)
+- **Scope toggle** below the button — `Untagged (N)` (items with no themes assigned, the default once any exist) or `All (N)` (everything, useful when you want fresh proposals from already-tagged content)
 - Cost-confirm popover before sending shows the item count and a rough input-token estimate
 - Returns two things in one structured call (Anthropic tool-use): **tag suggestions** to existing themes (with confidence) and **proposals** for new themes (with supporting items)
 - Inline **review queue** on the Themes tab — nothing auto-applies:
@@ -56,11 +57,18 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 - Dark mode, light mode, and system (follows OS setting) — toggled from Settings
 - Preference is persisted across sessions
 
-### Settings & export
+### Backup & restore
+- **Connect a backup folder** (File System Access API) — point Sidecar at any folder on disk and it auto-writes a `sidecar-snapshot.json` there on every change (debounced ~2s)
+- Point the folder at iCloud Drive / Dropbox / Google Drive and you get free cross-device sync and version history from a service you already trust
+- **Restore from folder** loads the snapshot back, replacing local data
+- **Import JSON** picks a backup file directly (e.g. one of those auto-snapshots, or any prior export) — shows a summary modal of what's inside before replacing data
+- **Export JSON** is a full backup including attachments, settings, suggestions, and rejections (formatVersion 2 — base64-encoded blobs round-trip through import)
+- **Export Markdown** — one entry per item, Obsidian-compatible YAML frontmatter
+- Storage status line shows whether the browser has marked IndexedDB as persistent (requested automatically on first launch)
+
+### Settings
 - Store your Anthropic API key locally (used by the scan and the upcoming agent)
 - Pick the scan model — Sonnet 4.6 (default) or Haiku 4.5 (cheaper, rougher proposals)
-- Export all data as **JSON** (full backup of items, themes, edges, and concepts)
-- Export as **Markdown** (one entry per item, Obsidian-compatible YAML frontmatter)
 - Clear all data from the danger zone
 
 ---
@@ -86,6 +94,7 @@ An interactive node-link diagram of your entire research corpus. Items, themes, 
 | Search | Fuse.js |
 | Markdown | react-markdown + remark-gfm |
 | AI | Anthropic SDK (claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, lazy-loaded |
+| Backup | File System Access API (auto-snapshot to user-chosen folder) + persisted IndexedDB |
 | Graph (upcoming) | react-force-graph-2d |
 | Export | file-saver |
 
@@ -114,3 +123,7 @@ After reloading the extension, refresh any open tabs to reinitialise the content
 ## Data & privacy
 
 Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and run **Scan** (which sends item snippets + notes to the Anthropic API for categorization) or use the upcoming agent. A cost-confirm popover shows the item count and rough token estimate before each scan. The API key itself never leaves your browser.
+
+**Durability.** IndexedDB can be wiped if you clear site data in Chrome. Two protections:
+- Sidecar requests **persistent storage** on first launch (survives passive eviction under disk pressure).
+- For real durability, **connect a backup folder** — snapshots write to disk on every change. Point at a synced folder (iCloud, Dropbox, Drive) and your data is replicated wherever that service syncs to. The folder handle is the only thing stored on this machine; the files themselves are yours.

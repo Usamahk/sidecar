@@ -55,6 +55,12 @@ export interface Setting {
   value: string
 }
 
+export interface StoredHandle {
+  key: string
+  handle: FileSystemDirectoryHandle
+  createdAt: number
+}
+
 export type SuggestionKind = 'assignment' | 'proposal'
 
 export interface Rejection {

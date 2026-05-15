@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
+import { requestPersistentStorage } from '@/db/persistence'
+import { wireAutoBackupHooks } from '@/db/backup'
 import { CaptureBar } from './components/CaptureBar'
 import { NavBar } from './components/NavBar'
 import { TimelineView } from './views/TimelineView'
@@ -12,6 +14,11 @@ import type { View } from '@/types'
 export function App() {
   const [view, setView] = useState<View>('timeline')
   const { mode, setTheme } = useTheme()
+
+  useEffect(() => {
+    void requestPersistentStorage()
+    wireAutoBackupHooks()
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-surface text-ink overflow-hidden">

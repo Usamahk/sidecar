@@ -1,7 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { saveAs } from 'file-saver'
 import { db } from '@/db/schema'
-import { exportAllData } from '@/db/items'
+import {
+  exportAllData,
+  importAllData,
+  summarize,
+  validateBackup,
+  type BackupPayload,
+  type ImportSummary,
+} from '@/db/items'
+import {
+  connectBackupFolder,
+  disconnectBackupFolder,
+  backupNow,
+  readSnapshotFromFolder,
+  subscribeBackupStatus,
+  getBackupStatus,
+  type BackupStatus,
+} from '@/db/backup'
+import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import type { ThemeMode } from '@/hooks/useTheme'
 import type { Setting } from '@/types'
@@ -27,9 +44,27 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [saved, setSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
 
+  const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importDone, setImportDone] = useState<ImportSummary | null>(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [backupStatus, setBackupStatus] = useState<BackupStatus>({
+    connected: false, folderName: null, lastWriteAt: null, isWriting: false, permissionLost: false,
+  })
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
+
+  const [persistStatus, setPersistStatus] = useState<PersistStatus>('transient')
+
   useEffect(() => {
     db.settings.get('anthropicApiKey').then((s: Setting | undefined) => { if (s?.value) setApiKey(s.value) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
+    getPersistStatus().then(setPersistStatus)
+    getBackupStatus().then(setBackupStatus)
+    const unsub = subscribeBackupStatus(() => { getBackupStatus().then(setBackupStatus) })
+    return unsub
   }, [])
 
   async function saveApiKey() {
@@ -51,12 +86,79 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
 
   async function handleExportMarkdown() {
     const items = await db.items.toArray()
-    const md = items.map((item) => [
+    const md = items.map((item: any) => [
       `---`, `url: ${item.url}`, `date: ${item.date}`,
       `captured: ${new Date(item.createdAt).toISOString()}`, `---`, ``,
       item.content, item.notes ? `\n> **Notes:** ${item.notes}` : '', ``, `---`,
     ].join('\n')).join('\n\n')
     saveAs(new Blob([md], { type: 'text/markdown' }), `sidecar-export-${new Date().toISOString().slice(0, 10)}.md`)
+  }
+
+  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImportError(null)
+    setImportDone(null)
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const payload = validateBackup(parsed)
+      setPendingImport(payload)
+    } catch (err) {
+      setImportError((err as Error).message || 'Could not read file')
+    }
+  }
+
+  async function handleRestoreFromFolder() {
+    setImportError(null)
+    setImportDone(null)
+    try {
+      const payload = await readSnapshotFromFolder()
+      if (!payload) {
+        setImportError('No sidecar-snapshot.json found in the connected folder.')
+        return
+      }
+      setPendingImport(payload)
+    } catch (err) {
+      setImportError((err as Error).message || 'Could not read snapshot')
+    }
+  }
+
+  async function confirmImport() {
+    if (!pendingImport) return
+    setImporting(true)
+    try {
+      const summary = await importAllData(pendingImport)
+      setImportDone(summary)
+      setPendingImport(null)
+    } catch (err) {
+      setImportError((err as Error).message || 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function handleConnectFolder() {
+    setBackupError(null)
+    setBackupBusy(true)
+    try {
+      const res = await connectBackupFolder()
+      if (!res.ok) setBackupError(res.error)
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  async function handleDisconnectFolder() {
+    if (!confirm('Disconnect backup folder? Your data stays here, but auto-backup stops.')) return
+    await disconnectBackupFolder()
+  }
+
+  async function handleBackupNow() {
+    setBackupError(null)
+    setBackupBusy(true)
+    try { await backupNow() } finally { setBackupBusy(false) }
   }
 
   async function handleClearAll() {
@@ -136,15 +238,94 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
         </div>
       </div>
 
-      {/* Export */}
+      {/* Backup */}
       <div>
-        <h2 className={sectionTitle}>Export</h2>
+        <h2 className={sectionTitle}>Backup</h2>
+
+        {backupStatus.connected ? (
+          <div className="space-y-2">
+            <div className="px-3 py-2 bg-surface-2 border border-line rounded-lg">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-medium text-ink truncate">
+                  📁 {backupStatus.folderName}
+                </span>
+                <span className={`text-[10px] flex-shrink-0 ${backupStatus.permissionLost ? 'text-red-400' : 'text-ink-3'}`}>
+                  {backupStatus.permissionLost
+                    ? 'access lost'
+                    : backupStatus.isWriting
+                      ? 'saving…'
+                      : backupStatus.lastWriteAt
+                        ? `saved ${formatAgo(backupStatus.lastWriteAt)}`
+                        : 'no snapshot yet'}
+                </span>
+              </div>
+              <p className="text-[11px] text-ink-3">
+                Auto-saves <code className="text-ink-2">sidecar-snapshot.json</code> on every change.
+                Point at iCloud / Dropbox / Drive for free sync.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleBackupNow} disabled={backupBusy}
+                className="flex-1 px-3 py-1.5 text-xs text-ink-2 border border-line hover:border-line-strong rounded-lg transition-colors disabled:opacity-50">
+                Save now
+              </button>
+              {backupStatus.permissionLost && (
+                <button onClick={handleConnectFolder} disabled={backupBusy}
+                  className="flex-1 px-3 py-1.5 text-xs text-accent border border-accent rounded-lg transition-colors disabled:opacity-50">
+                  Reconnect
+                </button>
+              )}
+              <button onClick={handleDisconnectFolder}
+                className="px-3 py-1.5 text-xs text-ink-3 hover:text-red-500 transition-colors">
+                Disconnect
+              </button>
+            </div>
+            <button onClick={handleRestoreFromFolder}
+              className={card}>
+              <span>♻️</span>
+              <div>
+                <div className="font-medium text-xs text-ink">Restore from folder</div>
+                <div className="text-ink-3 text-xs">Replace local data with the snapshot</div>
+              </div>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <button onClick={handleConnectFolder} disabled={backupBusy}
+              className="w-full px-3 py-2 bg-accent hover:opacity-90 text-white text-sm rounded-lg transition-opacity disabled:opacity-50">
+              Connect backup folder
+            </button>
+            <p className="text-[11px] text-ink-3">
+              Pick a folder (e.g. an iCloud / Dropbox / Drive folder) and Sidecar will save a snapshot there
+              on every change. This survives clearing site data.
+            </p>
+          </div>
+        )}
+
+        {backupError && (
+          <p className="text-[11px] text-red-400 mt-2">{backupError}</p>
+        )}
+
+        <div className="text-[10px] text-ink-3 mt-3">
+          Browser storage:{' '}
+          <span className={persistStatus === 'persistent' ? 'text-ink-2' : 'text-ink-3'}>
+            {persistStatus === 'persistent' && 'persistent (survives low-disk eviction)'}
+            {persistStatus === 'transient' && 'transient (can be evicted by browser)'}
+            {persistStatus === 'unsupported' && 'persist API not supported'}
+            {persistStatus === 'error' && 'could not check'}
+          </span>
+        </div>
+      </div>
+
+      {/* Import / Export */}
+      <div>
+        <h2 className={sectionTitle}>Import &amp; Export</h2>
         <div className="space-y-2">
           <button onClick={handleExportJSON} className={card}>
             <span>📦</span>
             <div>
               <div className="font-medium text-xs text-ink">Export JSON</div>
-              <div className="text-ink-3 text-xs">Full backup including all data</div>
+              <div className="text-ink-3 text-xs">Full backup including attachments</div>
             </div>
           </button>
           <button onClick={handleExportMarkdown} className={card}>
@@ -154,7 +335,30 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
               <div className="text-ink-3 text-xs">Obsidian-compatible vault format</div>
             </div>
           </button>
+          <button onClick={() => fileInputRef.current?.click()} className={card}>
+            <span>📥</span>
+            <div>
+              <div className="font-medium text-xs text-ink">Import JSON</div>
+              <div className="text-ink-3 text-xs">Replace local data with a backup file</div>
+            </div>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleFilePick}
+          />
         </div>
+
+        {importError && (
+          <p className="text-[11px] text-red-400 mt-2">{importError}</p>
+        )}
+        {importDone && (
+          <div className="mt-2 px-3 py-2 bg-accent/10 border border-accent/30 rounded-lg text-xs text-accent">
+            Imported {importDone.items} items, {importDone.themes} themes, {importDone.attachments} attachments.
+          </div>
+        )}
       </div>
 
       {/* Danger Zone */}
@@ -167,6 +371,72 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
           Clear All Items
         </button>
       </div>
+
+      {/* Import confirm modal */}
+      {pendingImport && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6">
+          <div className="bg-surface-1 border border-line-strong rounded-xl shadow-2xl p-5 max-w-md w-full">
+            <h3 className="text-sm font-semibold text-ink mb-2">Replace local data?</h3>
+            <p className="text-xs text-ink-3 mb-3">
+              This will <strong className="text-ink-2">delete everything currently in Sidecar</strong> and
+              load the backup. Settings keys are merged (not replaced).
+            </p>
+            <ImportSummaryList summary={summarize(pendingImport)} exportedAt={pendingImport.exportedAt} />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setPendingImport(null)}
+                disabled={importing}
+                className="px-3 py-1.5 text-xs border border-line hover:border-line-strong text-ink-2 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={importing}
+                className="px-3 py-1.5 text-xs bg-red-500 hover:opacity-90 text-white rounded-lg transition-opacity disabled:opacity-50"
+              >
+                {importing ? 'Importing…' : 'Replace data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function ImportSummaryList({ summary, exportedAt }: { summary: ImportSummary; exportedAt: string }) {
+  const rows: Array<[string, number]> = [
+    ['Items', summary.items],
+    ['Themes', summary.themes],
+    ['Attachments', summary.attachments],
+    ['Suggestions', summary.suggestions],
+    ['Rejections', summary.rejections],
+    ['Edges', summary.edges],
+  ]
+  return (
+    <div className="bg-surface-2 border border-line rounded-lg p-3 text-xs">
+      <div className="text-[10px] text-ink-3 mb-2">
+        Backup from {new Date(exportedAt).toLocaleString()}
+      </div>
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {rows.map(([label, n]) => (
+          <li key={label} className="flex justify-between text-ink-2">
+            <span>{label}</span>
+            <span className="tabular-nums">{n}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function formatAgo(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000)
+  if (secs < 60) return 'just now'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
