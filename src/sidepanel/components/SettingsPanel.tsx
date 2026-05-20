@@ -21,16 +21,22 @@ import {
 import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import type { ThemeMode } from '@/hooks/useTheme'
-import type { Setting } from '@/types'
+import type { AgentResponseMode, Setting } from '@/types'
 
 const SCAN_MODELS: { id: string; label: string; hint: string }[] = [
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Recommended · stronger clustering' },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', hint: 'Cheaper, faster · rougher proposals' },
 ]
 
+const AGENT_MODELS: { id: string; label: string; hint: string }[] = [
+  { id: 'claude-opus-4-7', label: 'Opus 4.7', hint: 'Best reasoning quality' },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Balanced speed/quality' },
+  { id: 'claude-haiku-4-5', label: 'Haiku 4.5', hint: 'Fastest, cheapest' },
+]
+
 const THEME_OPTIONS: { mode: ThemeMode; icon: string; label: string }[] = [
-  { mode: 'dark',   icon: '🌙', label: 'Dark'   },
-  { mode: 'light',  icon: '☀️', label: 'Light'  },
+  { mode: 'dark', icon: '🌙', label: 'Dark' },
+  { mode: 'light', icon: '☀️', label: 'Light' },
   { mode: 'system', icon: '💻', label: 'System' },
 ]
 
@@ -43,6 +49,10 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState('')
   const [saved, setSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
+  const [agentModel, setAgentModel] = useState('claude-opus-4-7')
+  const [agentUseWebDefault, setAgentUseWebDefault] = useState(false)
+  const [agentResponseMode, setAgentResponseMode] = useState<AgentResponseMode>('detailed')
+  const [agentMaxContextItems, setAgentMaxContextItems] = useState(6)
 
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -61,6 +71,15 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   useEffect(() => {
     db.settings.get('anthropicApiKey').then((s: Setting | undefined) => { if (s?.value) setApiKey(s.value) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
+    db.settings.get('agentModel').then((s: Setting | undefined) => { if (s?.value) setAgentModel(s.value) })
+    db.settings.get('agentUseWebDefault').then((s: Setting | undefined) => { if (s?.value === 'true') setAgentUseWebDefault(true) })
+    db.settings.get('agentResponseMode').then((s: Setting | undefined) => {
+      if (s?.value === 'concise' || s?.value === 'detailed') setAgentResponseMode(s.value)
+    })
+    db.settings.get('agentMaxContextItems').then((s: Setting | undefined) => {
+      const n = Number(s?.value)
+      if (!Number.isNaN(n) && n > 0 && n <= 12) setAgentMaxContextItems(n)
+    })
     getPersistStatus().then(setPersistStatus)
     getBackupStatus().then(setBackupStatus)
     const unsub = subscribeBackupStatus(() => { getBackupStatus().then(setBackupStatus) })
@@ -76,6 +95,26 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   async function handleModelChange(id: string) {
     setScanModel(id)
     await db.settings.put({ key: 'scanModel', value: id })
+  }
+
+  async function handleAgentModelChange(id: string) {
+    setAgentModel(id)
+    await db.settings.put({ key: 'agentModel', value: id })
+  }
+
+  async function handleAgentUseWebDefaultChange(next: boolean) {
+    setAgentUseWebDefault(next)
+    await db.settings.put({ key: 'agentUseWebDefault', value: String(next) })
+  }
+
+  async function handleAgentResponseModeChange(next: AgentResponseMode) {
+    setAgentResponseMode(next)
+    await db.settings.put({ key: 'agentResponseMode', value: next })
+  }
+
+  async function handleAgentMaxContextItemsChange(next: number) {
+    setAgentMaxContextItems(next)
+    await db.settings.put({ key: 'agentMaxContextItems', value: String(next) })
   }
 
   async function handleExportJSON() {
@@ -172,7 +211,6 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   return (
     <div className="flex flex-col h-full overflow-y-auto p-4 space-y-6">
 
-      {/* Appearance */}
       <div>
         <h2 className={sectionTitle}>Appearance</h2>
         <div className="flex gap-2">
@@ -196,7 +234,6 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
         )}
       </div>
 
-      {/* AI Agent */}
       <div>
         <h2 className={sectionTitle}>AI Agent</h2>
         <label className="block text-xs text-ink-3 mb-1.5">Anthropic API Key</label>
@@ -236,12 +273,69 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
             </button>
           ))}
         </div>
+
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Agent model</label>
+        <div className="space-y-1.5">
+          {AGENT_MODELS.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => handleAgentModelChange(m.id)}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors
+                ${agentModel === m.id
+                  ? 'bg-accent/10 border-accent'
+                  : 'bg-surface-2 border-line hover:border-line-strong'
+                }`}
+            >
+              <div className="min-w-0">
+                <div className={`text-xs font-medium ${agentModel === m.id ? 'text-accent' : 'text-ink'}`}>
+                  {m.label}
+                </div>
+                <div className="text-[11px] text-ink-3">{m.hint}</div>
+              </div>
+              {agentModel === m.id && <span className="text-accent text-xs">✓</span>}
+            </button>
+          ))}
+        </div>
+
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Agent defaults</label>
+        <div className="space-y-2">
+          <button
+            onClick={() => handleAgentUseWebDefaultChange(!agentUseWebDefault)}
+            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors
+              ${agentUseWebDefault ? 'bg-accent/10 border-accent' : 'bg-surface-2 border-line hover:border-line-strong'}`}
+          >
+            <span className="text-xs text-ink-2">Enable web augmentation by default</span>
+            <span className={`text-xs ${agentUseWebDefault ? 'text-accent' : 'text-ink-3'}`}>
+              {agentUseWebDefault ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={agentResponseMode}
+              onChange={(e) => handleAgentResponseModeChange(e.target.value as AgentResponseMode)}
+              className="bg-surface-2 border border-line hover:border-line-strong rounded-lg px-2 py-2 text-xs text-ink-2 outline-none"
+            >
+              <option value="detailed">Detailed responses</option>
+              <option value="concise">Concise responses</option>
+            </select>
+            <select
+              value={agentMaxContextItems}
+              onChange={(e) => handleAgentMaxContextItemsChange(Number(e.target.value))}
+              className="bg-surface-2 border border-line hover:border-line-strong rounded-lg px-2 py-2 text-xs text-ink-2 outline-none"
+            >
+              <option value={4}>4 context items</option>
+              <option value={6}>6 context items</option>
+              <option value={8}>8 context items</option>
+              <option value={10}>10 context items</option>
+              <option value={12}>12 context items</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Backup */}
       <div>
         <h2 className={sectionTitle}>Backup</h2>
-
         {backupStatus.connected ? (
           <div className="space-y-2">
             <div className="px-3 py-2 bg-surface-2 border border-line rounded-lg">
@@ -317,7 +411,6 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
         </div>
       </div>
 
-      {/* Import / Export */}
       <div>
         <h2 className={sectionTitle}>Import &amp; Export</h2>
         <div className="space-y-2">
@@ -361,7 +454,6 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
         )}
       </div>
 
-      {/* Danger Zone */}
       <div>
         <h2 className={sectionTitle}>Danger Zone</h2>
         <button onClick={handleClearAll}
@@ -372,7 +464,6 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
         </button>
       </div>
 
-      {/* Import confirm modal */}
       {pendingImport && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6">
           <div className="bg-surface-1 border border-line-strong rounded-xl shadow-2xl p-5 max-w-md w-full">
@@ -412,6 +503,8 @@ function ImportSummaryList({ summary, exportedAt }: { summary: ImportSummary; ex
     ['Attachments', summary.attachments],
     ['Suggestions', summary.suggestions],
     ['Rejections', summary.rejections],
+    ['Conversations', summary.conversations],
+    ['Messages', summary.messages],
     ['Edges', summary.edges],
   ]
   return (

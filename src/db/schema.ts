@@ -1,5 +1,17 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { ResearchItem, Theme, Concept, Edge, Attachment, Setting, Suggestion, Rejection, StoredHandle } from '@/types'
+import type {
+  ResearchItem,
+  Theme,
+  Concept,
+  Edge,
+  Attachment,
+  Setting,
+  Suggestion,
+  Rejection,
+  StoredHandle,
+  AgentConversation,
+  AgentMessage,
+} from '@/types'
 
 class SidecarDB extends Dexie {
   items!: EntityTable<ResearchItem, 'id'>
@@ -11,6 +23,8 @@ class SidecarDB extends Dexie {
   suggestions!: EntityTable<Suggestion, 'id'>
   rejections!: EntityTable<Rejection, 'id'>
   fileHandles!: EntityTable<StoredHandle, 'key'>
+  conversations!: EntityTable<AgentConversation, 'id'>
+  messages!: EntityTable<AgentMessage, 'id'>
 
   constructor() {
     super('SidecarDB')
@@ -58,6 +72,19 @@ class SidecarDB extends Dexie {
       suggestions: '++id, kind, scanId, themeId, createdAt',
       rejections: '++id, kind, itemId, themeId, proposedNameLower, [itemId+themeId]',
       fileHandles: 'key',
+    })
+    this.version(6).stores({
+      items: '++id, url, domain, date, createdAt, *themeIds, *conceptIds',
+      themes: '++id, name',
+      concepts: '++id, name',
+      edges: '++id, fromId, toId, type',
+      attachments: '++id, itemId, createdAt',
+      settings: 'key',
+      suggestions: '++id, kind, scanId, themeId, createdAt',
+      rejections: '++id, kind, itemId, themeId, proposedNameLower, [itemId+themeId]',
+      fileHandles: 'key',
+      conversations: '++id, updatedAt, createdAt',
+      messages: '++id, conversationId, createdAt, role',
     })
   }
 }

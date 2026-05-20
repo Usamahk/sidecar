@@ -154,6 +154,7 @@ export function wireAutoBackupHooks(): void {
   const tables = [
     db.items, db.themes, db.concepts, db.edges,
     db.attachments, db.settings, db.suggestions, db.rejections,
+    db.conversations, db.messages,
   ]
   for (const table of tables) {
     table.hook('creating', () => { scheduleBackup() })

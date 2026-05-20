@@ -94,6 +94,39 @@ export interface Suggestion {
   supportingItemIds?: number[]
 }
 
+export type AgentResponseMode = 'concise' | 'detailed'
+
+export interface AgentConversation {
+  id?: number
+  title: string
+  lastMessagePreview: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type CitationKind = 'item' | 'web'
+
+export interface AgentCitation {
+  kind: CitationKind
+  refId: string
+  title: string
+  url?: string
+  snippet: string
+  itemId?: number
+  domain?: string
+  date?: string
+}
+
+export interface AgentMessage {
+  id?: number
+  conversationId: number
+  role: 'user' | 'assistant'
+  content: string
+  citations: AgentCitation[]
+  usedWeb: boolean
+  model: string
+  createdAt: number
+}
 export type View = 'timeline' | 'themes' | 'graph' | 'agent' | 'settings'
 
 export interface TabInfo {

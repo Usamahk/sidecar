@@ -66,17 +66,26 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 - **Export Markdown** — one entry per item, Obsidian-compatible YAML frontmatter
 - Storage status line shows whether the browser has marked IndexedDB as persistent (requested automatically on first launch)
 
+### AI research agent
+- A Claude-powered chat interface in the **Agent** tab that answers questions grounded in your captured corpus
+- **Corpus retrieval** — every prompt runs a ranked Fuse.js search over your items (content, notes, URLs, titles, sender), boosted by theme match, notes match, and recency, and the top hits are fed to the model as context
+- **Web augmentation** (optional toggle) — pulls Wikipedia search results + summaries into the context alongside your own items
+- **Inline citations** — answers cite sources as `[S#]` (Sidecar item) or `[W#]` (web), and only the sources the model actually used are surfaced under each reply
+- **Conversations** persist in IndexedDB — multiple threads, auto-titled from the first prompt, with recent history carried into follow-ups
+- Uses adaptive thinking and prompt caching; runs against your local Anthropic API key
+
+**Retrieval design note.** Retrieval is currently a single ranked Fuse.js pass over the corpus, with score boosts for theme match, notes match, and recency. **Revisit when** typical corpora exceed ~2000 items or paraphrastic queries start missing items the user knows are there — at that point consider HyDE (a Haiku-written hypothetical-answer expansion fused with the original query) or a true embeddings provider (Voyage, local MiniLM via `transformers.js`, or whatever Anthropic ships), which can slot in beneath the existing context-assembly pipeline.
+
 ### Settings
-- Store your Anthropic API key locally (used by the scan and the upcoming agent)
+- Store your Anthropic API key locally (used by the scan and the agent)
 - Pick the scan model — Sonnet 4.6 (default) or Haiku 4.5 (cheaper, rougher proposals)
+- Pick the agent model — Opus 4.7 (default), Sonnet 4.6, or Haiku 4.5
+- Agent defaults — web augmentation on/off, response mode (detailed/concise), and how many corpus items to pull into context (1–12)
 - Clear all data from the danger zone
 
 ---
 
 ## Coming soon
-
-### AI research agent (Phase 3)
-A Claude-powered chat interface built into the Agent tab. The agent will search across your captured items and the web simultaneously, with full context of your research corpus when answering.
 
 ### Visual knowledge graph (Phase 4)
 An interactive node-link diagram of your entire research corpus. Items, themes, and AI-extracted concepts appear as nodes; relationships between them as edges. Click any node to open the item or filter the timeline. Node size reflects connection count.
@@ -93,7 +102,7 @@ An interactive node-link diagram of your entire research corpus. Items, themes, 
 | Storage | Dexie.js (IndexedDB) |
 | Search | Fuse.js |
 | Markdown | react-markdown + remark-gfm |
-| AI | Anthropic SDK (claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, lazy-loaded |
+| AI | Anthropic SDK (claude-opus-4-7 / claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, adaptive thinking + prompt caching for the agent, lazy-loaded |
 | Backup | File System Access API (auto-snapshot to user-chosen folder) + persisted IndexedDB |
 | Graph (upcoming) | react-force-graph-2d |
 | Export | file-saver |
@@ -122,7 +131,7 @@ After reloading the extension, refresh any open tabs to reinitialise the content
 
 ## Data & privacy
 
-Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and run **Scan** (which sends item snippets + notes to the Anthropic API for categorization) or use the upcoming agent. A cost-confirm popover shows the item count and rough token estimate before each scan. The API key itself never leaves your browser.
+Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and either run **Scan** (which sends item snippets + notes to the Anthropic API for categorization) or chat with the **Agent** (which sends your prompt plus the retrieved item snippets, and — if web augmentation is on — fetches from Wikipedia). A cost-confirm popover shows the item count and rough token estimate before each scan. The API key itself never leaves your browser.
 
 **Durability.** IndexedDB can be wiped if you clear site data in Chrome. Two protections:
 - Sidecar requests **persistent storage** on first launch (survives passive eviction under disk pressure).
