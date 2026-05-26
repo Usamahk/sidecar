@@ -110,40 +110,48 @@ export async function chatWithAgent(input: ChatWithAgentInput): Promise<ChatWith
     ? 'Keep the answer compact (3-6 bullets or one short paragraph).'
     : 'Provide a complete answer with clear structure and practical details.'
 
+  // Adaptive thinking is supported on Opus 4.7/4.6 and Sonnet 4.6, but not Haiku —
+  // sending it to Haiku 4.5 returns a 400, so only attach it where it's valid.
+  const supportsAdaptiveThinking = !model.includes('haiku')
+
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      thinking: { type: 'adaptive' },
-      cache_control: { type: 'ephemeral' } as any,
-      system: [{
-        type: 'text',
-        text: joinContextLines([
-          'You are Sidecar, a research assistant grounded in provided context.',
-          'Rules:',
-          '- Use the supplied context blocks first.',
-          '- If context is insufficient, say so briefly.',
-          '- Cite source refs inline like [S12] or [W2] for factual claims.',
-          `- ${detailInstruction}`,
-          '- End your answer with exactly one line in this format:',
-          'USED_SOURCES: S1, W1',
-        ]),
-        cache_control: { type: 'ephemeral' },
-      }] as any,
-      messages: [
-        ...toApiHistory(input.history),
-        {
-          role: 'user',
-          content: joinContextLines([
-            `Question: ${input.prompt}`,
-            '',
-            'Context blocks:',
-            context,
+    const response = await client.messages.create(
+      {
+        model,
+        max_tokens: 4096,
+        // `adaptive` is the only thinking mode on Opus 4.7.
+        ...(supportsAdaptiveThinking ? { thinking: { type: 'adaptive' as const } } : {}),
+        system: [{
+          type: 'text',
+          text: joinContextLines([
+            'You are Sidecar, a research assistant grounded in provided context.',
+            'Rules:',
+            '- Use the supplied context blocks first.',
+            '- If context is insufficient, say so briefly.',
+            '- Cite source refs inline like [S12] or [W2] for factual claims.',
+            `- ${detailInstruction}`,
+            '- End your answer with exactly one line in this format:',
+            'USED_SOURCES: S1, W1',
           ]),
-        },
-      ],
-      signal: input.signal,
-    } as any)
+          cache_control: { type: 'ephemeral' },
+        }],
+        messages: [
+          ...toApiHistory(input.history),
+          {
+            role: 'user',
+            content: joinContextLines([
+              `Question: ${input.prompt}`,
+              '',
+              'Context blocks:',
+              context,
+            ]),
+          },
+        ],
+      },
+      // signal is a request option, NOT a body field — putting it in the body
+      // makes the API reject the request with "signal: Extra inputs are not permitted".
+      { signal: input.signal },
+    )
     const text = extractText(response)
     const parsed = parseUsedRefs(text)
     const used = parsed.refs.size > 0

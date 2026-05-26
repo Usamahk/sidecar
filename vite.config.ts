@@ -17,6 +17,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  build: {
+    rollupOptions: {
+      // The Anthropic SDK's Managed Agents worker dynamically imports a
+      // Node-only agent-toolset (node:crypto/fs/path). That code path is never
+      // reached in the extension; externalize node builtins so the dead chunk
+      // doesn't break the browser build.
+      external: [/^node:/],
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

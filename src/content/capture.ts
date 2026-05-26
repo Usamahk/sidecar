@@ -1,29 +1,37 @@
+function readSender(el: HTMLElement | null | undefined): string {
+  if (!el) return ''
+  const name = el.getAttribute('name')?.trim()
+  if (name) return name
+  const text = el.textContent?.trim()
+  if (text && !text.includes('@')) return text  // prefer display name over raw address
+  return text || ''
+}
+
+// Gmail keeps previously-opened conversations mounted in the DOM (hidden), so a
+// sender query can match cached, offscreen messages. Only the visible one is the
+// message actually on screen.
+function isVisible(el: HTMLElement): boolean {
+  if (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0) return false
+  const rect = el.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0
+}
+
 function extractGmailSender(): string {
-  // Prefer any element that has BOTH an email attribute and a name/text — very specific to Gmail sender spans
-  const byAttr = document.querySelector<HTMLElement>('[email][name]')
-  if (byAttr) {
-    const name = byAttr.getAttribute('name')?.trim()
-    if (name) return name
-  }
+  // Scope to the conversation reading pane. Without this, broad [email] queries
+  // match the chat/contacts sidebar, hovercards, the account chip, and inbox
+  // list rows — all of which carry [email][name] and appear before the open
+  // message in DOM order, so querySelector would return a constant wrong sender.
+  const scope: ParentNode = document.querySelector<HTMLElement>('[role="main"]') ?? document
 
-  // Fallback: elements with just an email attribute (grab text content as display name)
-  const byEmail = document.querySelector<HTMLElement>('[email]')
-  if (byEmail) {
-    const text = byEmail.textContent?.trim()
-    if (text && !text.includes('@')) return text  // prefer display name over raw address
-    const name = byEmail.getAttribute('name')?.trim()
-    if (name) return name
-    if (text) return text
-  }
+  // Open-message headers use span.gD (inbox rows and the sidebar do not). A
+  // thread can hold several; the last visible one is the message in view.
+  const gdVisible = Array.from(scope.querySelectorAll<HTMLElement>('span.gD[email]')).filter(isVisible)
+  const fromGd = readSender(gdVisible[gdVisible.length - 1])
+  if (fromGd) return fromGd
 
-  // Fallback: classic Gmail classes
-  for (const sel of ['.gD', '.go']) {
-    const el = document.querySelector<HTMLElement>(sel)
-    const val = el?.getAttribute('name')?.trim() || el?.textContent?.trim()
-    if (val) return val
-  }
-
-  return ''
+  // Fallback: any visible sender-like element within the reading pane.
+  const attrCandidates = Array.from(scope.querySelectorAll<HTMLElement>('[email]')).filter(isVisible)
+  return readSender(attrCandidates[attrCandidates.length - 1])
 }
 
 function sendPageInfo() {
