@@ -8,6 +8,14 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 
 ---
 
+## Screenshots
+
+| Timeline | Themes | Agent |
+|---|---|---|
+| ![Timeline](docs/screenshots/timeline.png) | ![Themes](docs/screenshots/themes.png) | ![Agent](docs/screenshots/agent.png) |
+
+---
+
 ## What it does now
 
 ### Capture
