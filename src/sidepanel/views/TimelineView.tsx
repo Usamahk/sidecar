@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { db } from '@/db/schema'
 import { ResearchItem } from '../components/ResearchItem'
 import { SearchBar } from '../components/SearchBar'
+import { Icons } from '../components/Icons'
 import type { ResearchItem as ResearchItemType, Theme } from '@/types'
 
 type SortDir = 'desc' | 'asc'
@@ -67,9 +68,9 @@ export function TimelineView() {
 
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
-            <div className="text-4xl mb-4">📋</div>
-            <p className="text-ink-2 text-sm font-medium mb-1">
+          <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12 gap-1.5">
+            <div className="mb-2 text-ink-3"><Icons.timeline size={48} stroke={1.4} /></div>
+            <p className="font-serif text-[19px] text-ink m-0">
               {isFiltering || isSearching ? 'No matches' : 'Nothing captured yet'}
             </p>
             <p className="text-ink-3 text-xs">

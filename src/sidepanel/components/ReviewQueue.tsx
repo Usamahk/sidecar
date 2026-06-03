@@ -12,6 +12,7 @@ import {
   dismissAll,
 } from '@/db/suggestions'
 import type { Suggestion, Theme } from '@/types'
+import { Icons } from './Icons'
 
 export function ReviewQueue() {
   const suggestions = useLiveQuery(() => db.suggestions.toArray(), [])
@@ -142,9 +143,11 @@ function ProposalCard({ suggestion }: { suggestion: Suggestion }) {
 
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="text-xs text-ink-3 hover:text-ink-2 transition-colors ml-6 mb-1.5"
+        className="inline-flex items-center gap-1.5 text-xs text-ink-3 hover:text-ink-2 transition-colors ml-6 mb-1.5"
       >
-        {expanded ? '▾' : '▸'} Found in {supportCount} item{supportCount !== 1 ? 's' : ''}
+        <Icons.chevron size={10} stroke={2}
+          style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
+        Found in {supportCount} item{supportCount !== 1 ? 's' : ''}
       </button>
 
       {expanded && (
@@ -164,7 +167,7 @@ function ProposalCard({ suggestion }: { suggestion: Suggestion }) {
         </button>
         <button
           onClick={() => approveProposal(suggestion.id!)}
-          className="text-xs px-2 py-1 rounded bg-accent text-white hover:opacity-90 transition-opacity"
+          className="text-xs px-2 py-1 rounded bg-accent text-on-accent hover:opacity-90 transition-opacity"
         >
           Approve
         </button>
@@ -215,7 +218,8 @@ function AssignmentGroup({ theme, items }: { theme: Theme; items: Suggestion[] }
           onClick={() => setExpanded((e) => !e)}
           className="flex items-center gap-2 flex-1 min-w-0 text-left"
         >
-          <span className="text-ink-3 text-[10px]">{expanded ? '▾' : '▸'}</span>
+          <Icons.chevron size={10} stroke={2}
+            style={{ color: 'var(--ink-3)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
           <span
             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: theme.color }}
@@ -225,17 +229,17 @@ function AssignmentGroup({ theme, items }: { theme: Theme; items: Suggestion[] }
         </button>
         <button
           onClick={() => bulkApproveByTheme(theme.id!)}
-          className="text-xs px-2 py-0.5 rounded text-accent hover:bg-accent/10 transition-colors"
+          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded text-accent hover:bg-accent/10 transition-colors"
           title="Approve all"
         >
-          ✓ all
+          <Icons.check size={11} stroke={2} /> all
         </button>
         <button
           onClick={() => bulkRejectByTheme(theme.id!)}
-          className="text-xs px-2 py-0.5 rounded text-ink-3 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded text-ink-3 hover:text-red-500 hover:bg-red-500/10 transition-colors"
           title="Reject all"
         >
-          ✗ all
+          <Icons.close size={11} stroke={2} /> all
         </button>
       </div>
 
@@ -261,17 +265,17 @@ function AssignmentRow({ suggestion }: { suggestion: Suggestion }) {
       </span>
       <button
         onClick={() => approveAssignment(suggestion.id!)}
-        className="text-xs text-accent hover:opacity-80 opacity-0 group-hover:opacity-100 transition-opacity px-1"
+        className="text-accent hover:opacity-80 opacity-0 group-hover:opacity-100 transition-opacity px-1"
         aria-label="Approve"
       >
-        ✓
+        <Icons.check size={13} stroke={2} />
       </button>
       <button
         onClick={() => rejectSuggestion(suggestion.id!)}
-        className="text-xs text-ink-3 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-1"
+        className="text-ink-3 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-1"
         aria-label="Reject"
       >
-        ✗
+        <Icons.close size={13} stroke={2} />
       </button>
     </li>
   )

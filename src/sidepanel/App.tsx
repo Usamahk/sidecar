@@ -4,6 +4,7 @@ import { requestPersistentStorage } from '@/db/persistence'
 import { wireAutoBackupHooks } from '@/db/backup'
 import { CaptureBar } from './components/CaptureBar'
 import { NavBar } from './components/NavBar'
+import { Wordmark } from './components/Icons'
 import { TimelineView } from './views/TimelineView'
 import { ThemesView } from './views/ThemesView'
 import { GraphView } from './views/GraphView'
@@ -22,13 +23,9 @@ export function App() {
 
   return (
     <div className="flex flex-col h-screen bg-surface text-ink overflow-hidden">
-      {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-line bg-surface-1 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">🔭</span>
-          <span className="text-sm font-semibold text-ink">Sidecar</span>
-        </div>
-        <span className="text-xs text-ink-3 capitalize">{view}</span>
+        <Wordmark size={20} />
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-3">{view}</span>
       </header>
 
       {view === 'timeline' && <CaptureBar />}

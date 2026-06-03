@@ -6,8 +6,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        sans: ['Geist', 'system-ui', '-apple-system', 'sans-serif'],
+        serif: ['"Instrument Serif"', 'Georgia', 'serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'monospace'],
       },
       colors: {
         surface: {
@@ -26,9 +27,11 @@ export default {
           strong: 'var(--line-strong)',
         },
         accent: {
-          DEFAULT: '#6366f1',
-          hover: '#818cf8',
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
         },
+        'chip-ink': 'var(--chip-ink)',
+        'on-accent': 'var(--on-accent)',
       },
     },
   },

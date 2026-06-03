@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/schema'
 import { addMessage, createConversation, deleteConversation } from '@/db/agent'
 import { chatWithAgent, AgentChatError } from '@/ai/agent/chat'
+import { Icons } from '../components/Icons'
 import type { AgentCitation, AgentResponseMode, AgentMessage } from '@/types'
 
 export function AgentView() {
@@ -204,10 +205,10 @@ export function AgentView() {
 
       <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {showEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
-            <div className="text-4xl mb-4">🤖</div>
-            <p className="text-ink-2 text-sm font-medium mb-1">Ask Sidecar about your research</p>
-            <p className="text-ink-3 text-xs">Answers are grounded in captured items, with optional web context.</p>
+          <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12 gap-1.5">
+            <div className="mb-2 text-ink-3"><Icons.agent size={48} stroke={1.4} /></div>
+            <p className="font-serif text-[19px] text-ink m-0">Ask Sidecar about your research</p>
+            <p className="text-xs text-ink-3 max-w-[240px] leading-relaxed m-0">Answers are grounded in captured items, with optional web context.</p>
           </div>
         ) : (
           messages!.map((message) => (
@@ -248,13 +249,13 @@ export function AgentView() {
             <button
               onClick={() => void handleSend()}
               disabled={!canSend}
-              className="px-3 py-2 text-xs rounded-lg bg-accent text-white disabled:opacity-40"
+              className="px-3 py-2 text-xs rounded-lg bg-accent text-on-accent disabled:opacity-40"
             >
               Send
             </button>
           )}
         </div>
-        <p className="text-[10px] text-ink-3 mt-1">⌘↵ / Ctrl↵ to send</p>
+        <p className="font-mono text-[10px] text-ink-3 mt-1">⌘↵ / Ctrl↵ to send</p>
       </div>
     </div>
   )

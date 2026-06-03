@@ -22,6 +22,7 @@ import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import type { ThemeMode } from '@/hooks/useTheme'
 import type { AgentResponseMode, Setting } from '@/types'
+import { Icons } from './Icons'
 
 const SCAN_MODELS: { id: string; label: string; hint: string }[] = [
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Recommended · stronger clustering' },
@@ -34,10 +35,10 @@ const AGENT_MODELS: { id: string; label: string; hint: string }[] = [
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5', hint: 'Fastest, cheapest' },
 ]
 
-const THEME_OPTIONS: { mode: ThemeMode; icon: string; label: string }[] = [
-  { mode: 'dark', icon: '🌙', label: 'Dark' },
-  { mode: 'light', icon: '☀️', label: 'Light' },
-  { mode: 'system', icon: '💻', label: 'System' },
+const THEME_OPTIONS: { mode: ThemeMode; Icon: typeof Icons[string]; label: string }[] = [
+  { mode: 'dark',   Icon: Icons.moon,    label: 'Dark'   },
+  { mode: 'light',  Icon: Icons.sun,     label: 'Light'  },
+  { mode: 'system', Icon: Icons.monitor, label: 'System' },
 ]
 
 interface SettingsPanelProps {
@@ -214,7 +215,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
       <div>
         <h2 className={sectionTitle}>Appearance</h2>
         <div className="flex gap-2">
-          {THEME_OPTIONS.map(({ mode: m, icon, label }) => (
+          {THEME_OPTIONS.map(({ mode: m, Icon, label }) => (
             <button
               key={m}
               onClick={() => setTheme(m)}
@@ -224,7 +225,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
                   : 'bg-surface-2 border-line text-ink-2 hover:border-line-strong hover:text-ink'
                 }`}
             >
-              <span className="text-xl leading-none">{icon}</span>
+              <Icon size={20} />
               <span>{label}</span>
             </button>
           ))}
@@ -246,8 +247,9 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
             text-sm text-ink placeholder-ink-3 outline-none transition-colors mb-2"
         />
         <button onClick={saveApiKey}
-          className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-xs rounded-lg transition-colors font-medium">
-          {saved ? '✓ Saved' : 'Save Key'}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-on-accent text-xs rounded-lg transition-colors font-medium">
+          {saved && <Icons.check size={14} />}
+          {saved ? 'Saved' : 'Save Key'}
         </button>
         <p className="text-xs text-ink-3 mt-2">Stored locally in Chrome — never leaves your browser.</p>
 
@@ -269,7 +271,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
                 </div>
                 <div className="text-[11px] text-ink-3">{m.hint}</div>
               </div>
-              {scanModel === m.id && <span className="text-accent text-xs">✓</span>}
+              {scanModel === m.id && <Icons.check size={14} stroke={2} />}
             </button>
           ))}
         </div>
@@ -292,7 +294,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
                 </div>
                 <div className="text-[11px] text-ink-3">{m.hint}</div>
               </div>
-              {agentModel === m.id && <span className="text-accent text-xs">✓</span>}
+              {agentModel === m.id && <Icons.check size={14} stroke={2} />}
             </button>
           ))}
         </div>
@@ -341,7 +343,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
             <div className="px-3 py-2 bg-surface-2 border border-line rounded-lg">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="text-xs font-medium text-ink truncate">
-                  📁 {backupStatus.folderName}
+                  {backupStatus.folderName}
                 </span>
                 <span className={`text-[10px] flex-shrink-0 ${backupStatus.permissionLost ? 'text-red-400' : 'text-ink-3'}`}>
                   {backupStatus.permissionLost

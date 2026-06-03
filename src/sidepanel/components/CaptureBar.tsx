@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { addItem } from '@/db/items'
 import { addAttachment } from '@/db/attachments'
 import { useCurrentTab } from '@/hooks/useCurrentUrl'
+import { Icons } from './Icons'
 
 function extractClipboardImage(items: DataTransferItemList): Blob | null {
   for (const item of Array.from(items)) {
@@ -164,8 +165,8 @@ export function CaptureBar() {
               className="rounded-lg border border-line max-h-32 w-full object-cover" />
             <button onClick={clearImage}
               className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-surface/80 text-ink-3
-                hover:text-red-500 flex items-center justify-center text-xs">
-              ✕
+                hover:text-red-500 flex items-center justify-center">
+              <Icons.close size={12} stroke={2} />
             </button>
           </div>
         )}
@@ -199,13 +200,13 @@ export function CaptureBar() {
           {isActive && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={() => fileInputRef.current?.click()}
-                className="text-ink-3 hover:text-ink-2 transition-colors text-xs" title="Attach screenshot">
-                📎
+                className="text-ink-3 hover:text-ink-2 transition-colors" title="Attach screenshot">
+                <Icons.image size={16} />
               </button>
-              <span className="text-xs text-ink-3">⌘↵</span>
+              <span className="font-mono text-[10px] text-ink-3">⌘↵</span>
               <button onClick={handleCapture} disabled={!hasContent}
                 className="px-3 py-1 bg-accent hover:bg-accent-hover disabled:opacity-40
-                  disabled:cursor-not-allowed text-white text-xs rounded-lg transition-colors font-medium">
+                  disabled:cursor-not-allowed text-on-accent text-xs rounded-lg transition-colors font-medium">
                 Capture
               </button>
             </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { getAttachments, deleteAttachment } from '@/db/attachments'
 import type { Attachment } from '@/types'
+import { Icons } from './Icons'
 
 function AttachmentThumb({ attachment }: { attachment: Attachment }) {
   const [url, setUrl] = useState<string>('')
@@ -24,10 +25,10 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
         <button
           onClick={() => deleteAttachment(attachment.id!)}
           className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-surface/80 text-ink-3
-            hover:text-red-500 transition-colors text-xs items-center justify-center hidden group-hover:flex"
+            hover:text-red-500 transition-colors items-center justify-center hidden group-hover:flex"
           aria-label="Remove screenshot"
         >
-          ✕
+          <Icons.close size={12} stroke={2} />
         </button>
       </div>
 
@@ -38,8 +39,9 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
             className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
             onClick={(e) => e.stopPropagation()} />
           <button onClick={() => setLightbox(false)}
-            className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl leading-none">
-            ✕
+            className="absolute top-4 right-4 text-white/70 hover:text-white"
+            aria-label="Close">
+            <Icons.close size={24} stroke={2} />
           </button>
         </div>
       )}

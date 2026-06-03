@@ -1,37 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
 import { updateItem } from '@/db/items'
 import type { ResearchItem, SourceType } from '@/types'
+import { Icons } from './Icons'
 
 // Colors use dark: variants so they adapt to both themes
-const SOURCE_CONFIG: Record<SourceType, { label: string; icon: string; cls: string }> = {
+const SOURCE_CONFIG: Record<SourceType, { label: string; cls: string }> = {
   newsletter: {
     label: 'Newsletter',
-    icon: '✉️',
     cls: 'bg-sky-100 dark:bg-sky-950 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-400',
   },
   website: {
     label: 'Website',
-    icon: '🌐',
     cls: 'bg-surface-2 border-line text-ink-2',
   },
   twitter: {
     label: 'X / Twitter',
-    icon: '𝕏',
     cls: 'bg-surface-2 border-line text-ink-2',
   },
   reddit: {
     label: 'Reddit',
-    icon: '🤖',
     cls: 'bg-orange-100 dark:bg-orange-950 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-400',
   },
   product: {
     label: 'Product',
-    icon: '🛠️',
     cls: 'bg-violet-100 dark:bg-violet-950 border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-400',
   },
   internal: {
     label: 'Internal',
-    icon: '🏢',
     cls: 'bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400',
   },
 }
@@ -82,9 +77,8 @@ export function SourceTag({ item }: Props) {
           onClick={() => setDropdownOpen((o) => !o)}
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors hover:opacity-80 ${config.cls}`}
         >
-          <span>{config.icon}</span>
           <span>{config.label}</span>
-          <span className="ml-0.5 opacity-60 text-[10px]">▾</span>
+          <Icons.chevron size={10} stroke={2} style={{ transform: 'rotate(90deg)', opacity: 0.6 }} />
         </button>
 
         {dropdownOpen && (
@@ -99,9 +93,8 @@ export function SourceTag({ item }: Props) {
                   className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors
                     ${active ? 'bg-surface-3 text-ink font-medium' : 'text-ink-2 hover:bg-surface-2'}`}
                 >
-                  <span>{c.icon}</span>
                   <span>{c.label}</span>
-                  {active && <span className="ml-auto text-ink-3">✓</span>}
+                  {active && <span className="ml-auto text-ink-3"><Icons.check size={12} stroke={2} /></span>}
                 </button>
               )
             })}

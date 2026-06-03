@@ -4,6 +4,8 @@ A Chrome extension that lives in your browser's side panel and acts as a persist
 
 Built as a local-first tool — all data stays in your browser (IndexedDB), with export options for backup and portability.
 
+The extension wears a warm-neutral identity: Instrument Serif for the wordmark and headings, Geist for the body, Geist Mono for the chrome (eyebrows, source tags, keyboard hints). The toolbar icon is a top-down motorcycle outline with a coral sidecar pod — the same mark sits in the panel header next to the wordmark. Day and night modes use the same coral accent over warm-neutral surfaces.
+
 ---
 
 ## What it does now
@@ -72,7 +74,7 @@ Built as a local-first tool — all data stays in your browser (IndexedDB), with
 - **Web augmentation** (optional toggle) — pulls Wikipedia search results + summaries into the context alongside your own items
 - **Inline citations** — answers cite sources as `[S#]` (Sidecar item) or `[W#]` (web), and only the sources the model actually used are surfaced under each reply
 - **Conversations** persist in IndexedDB — multiple threads, auto-titled from the first prompt, with recent history carried into follow-ups
-- Uses adaptive thinking and prompt caching; runs against your local Anthropic API key
+- Uses prompt caching on every request and adaptive thinking where the model supports it (Opus 4.7 / Sonnet 4.6 — not Haiku); runs against your local Anthropic API key
 
 **Retrieval design note.** Retrieval is currently a single ranked Fuse.js pass over the corpus, with score boosts for theme match, notes match, and recency. **Revisit when** typical corpora exceed ~2000 items or paraphrastic queries start missing items the user knows are there — at that point consider HyDE (a Haiku-written hypothetical-answer expansion fused with the original query) or a true embeddings provider (Voyage, local MiniLM via `transformers.js`, or whatever Anthropic ships), which can slot in beneath the existing context-assembly pipeline.
 
@@ -98,7 +100,7 @@ An interactive node-link diagram of your entire research corpus. Items, themes, 
 |---|---|
 | Extension | Chrome Manifest V3 + Side Panel API |
 | Build | Vite + `@crxjs/vite-plugin` + TypeScript |
-| UI | React 18 + Tailwind CSS |
+| UI | React 18 + Tailwind CSS, Geist + Instrument Serif + Geist Mono via Google Fonts, line-icon set in `components/Icons.tsx` |
 | Storage | Dexie.js (IndexedDB) |
 | Search | Fuse.js |
 | Markdown | react-markdown + remark-gfm |

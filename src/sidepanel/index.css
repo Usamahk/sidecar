@@ -1,32 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* ── Light mode (default) ───────────────────────── */
+  /* ── Day (default) — warm neutral palette ───────── */
   :root {
-    --surface:     #ffffff;
-    --surface-1:   #f7f7f8;
-    --surface-2:   #eeeeef;
-    --surface-3:   #e4e4e7;
-    --ink:         #18181b;
-    --ink-2:       #52525b;
-    --ink-3:       #a1a1aa;
-    --line:        #e4e4e7;
-    --line-strong: #d4d4d8;
+    --surface:     #FCFBF9;
+    --surface-1:   #F6F4EF;
+    --surface-2:   #EEEBE3;
+    --surface-3:   #E3DFD5;
+    --ink:         #1B1A17;
+    --ink-2:       #5C584F;
+    --ink-3:       #9C978B;
+    --line:        #E8E4DA;
+    --line-strong: #D7D2C6;
+    --chip-ink:    #4A4640;
+    --accent:      #E0604F;
+    --accent-hover:#D04C3A;
+    --on-accent:   #ffffff;
   }
 
-  /* ── Dark mode ──────────────────────────────────── */
+  /* ── Night ──────────────────────────────────────── */
   .dark {
-    --surface:     #0f0f0f;
-    --surface-1:   #1a1a1a;
-    --surface-2:   #242424;
-    --surface-3:   #2e2e2e;
-    --ink:         #e4e4e7;
-    --ink-2:       #a1a1aa;
-    --ink-3:       #52525b;
-    --line:        #27272a;
-    --line-strong: #3f3f46;
+    --surface:     #15140F;
+    --surface-1:   #1D1B16;
+    --surface-2:   #26231D;
+    --surface-3:   #312E26;
+    --ink:         #EFEBE3;
+    --ink-2:       #ABA59A;
+    --ink-3:       #716C61;
+    --line:        #2A2720;
+    --line-strong: #3C382F;
+    --chip-ink:    #EFEBE3;
   }
 
   * { box-sizing: border-box; }
@@ -38,8 +45,9 @@
   }
 
   body {
-    font-family: Inter, system-ui, sans-serif;
+    font-family: 'Geist', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     background-color: var(--surface);
     color: var(--ink);
   }

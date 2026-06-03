@@ -8,6 +8,7 @@ import { ThemeTag } from './ThemeTag'
 import { ThemePicker } from './ThemePicker'
 import { SourceTag } from './SourceTag'
 import { AttachmentList } from './AttachmentView'
+import { Icons } from './Icons'
 import type { ResearchItem as ResearchItemType } from '@/types'
 
 interface Props { item: ResearchItemType }
@@ -44,14 +45,14 @@ export function ResearchItem({ item }: Props) {
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={() => setExpanded(!expanded)}
-            className="text-ink-3 hover:text-ink-2 transition-colors text-xs px-1"
+            className="text-ink-3 hover:text-ink-2 transition-colors p-0.5"
             aria-label={expanded ? 'Collapse' : 'Expand'}>
-            {expanded ? '−' : '+'}
+            {expanded ? <Icons.minus size={14} /> : <Icons.add size={14} />}
           </button>
           <button onClick={() => { if (confirm('Delete this item?')) deleteItem(item.id!) }}
-            className="text-ink-3 hover:text-red-500 transition-colors text-xs px-1"
+            className="text-ink-3 hover:text-red-500 transition-colors p-0.5"
             aria-label="Delete item">
-            ✕
+            <Icons.close size={14} />
           </button>
         </div>
       </div>
@@ -133,9 +134,9 @@ export function ResearchItem({ item }: Props) {
               <ThemePicker itemId={item.id!} assignedThemeIds={item.themeIds} />
             </div>
             <button onClick={() => fileInputRef.current?.click()}
-              className="flex-shrink-0 text-ink-3 hover:text-ink-2 transition-colors text-xs"
+              className="flex-shrink-0 text-ink-3 hover:text-ink-2 transition-colors"
               title="Attach screenshot">
-              📎
+              <Icons.image size={14} />
             </button>
           </div>
         </>

@@ -5,6 +5,7 @@ import { addTheme, updateTheme, deleteTheme, THEME_COLORS } from '@/db/themes'
 import { ScanPanel } from '../components/ScanPanel'
 import { ReviewQueue } from '../components/ReviewQueue'
 import { ResearchItem } from '../components/ResearchItem'
+import { Icons } from '../components/Icons'
 import type { Theme, ResearchItem as ResearchItemType } from '@/types'
 
 export function ThemesView() {
@@ -37,7 +38,7 @@ export function ThemesView() {
         <button
           type="submit"
           disabled={!newName.trim()}
-          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white
+          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-on-accent
             disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
         >
           Add
@@ -50,10 +51,10 @@ export function ThemesView() {
         <ReviewQueue />
 
         {(!themes || themes.length === 0) && !suggestionCount ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
-            <div className="text-4xl mb-4">🗂️</div>
-            <p className="text-ink-2 text-sm font-medium mb-1">No themes yet</p>
-            <p className="text-ink-3 text-xs">Create one above, or run Scan to discover them</p>
+          <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12 gap-1.5">
+            <div className="mb-2 text-ink-3"><Icons.themes size={48} stroke={1.4} /></div>
+            <p className="font-serif text-[19px] text-ink m-0">No themes yet</p>
+            <p className="text-xs text-ink-3 max-w-[240px] leading-relaxed m-0">Create one above, or run Scan to discover them.</p>
           </div>
         ) : !themes || themes.length === 0 ? null : (
           <ul className="p-3 space-y-2">
@@ -178,16 +179,17 @@ function ThemeRow({ theme }: { theme: Theme }) {
         >
           <span>{itemCount ?? 0}</span>
           {hasItems && (
-            <span className="text-[10px] leading-none">{expanded ? '▾' : '▸'}</span>
+            <Icons.chevron size={10} stroke={2}
+              style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
           )}
         </button>
 
         <button
           onClick={handleDelete}
-          className="text-ink-3 hover:text-red-500 transition-colors text-xs px-1 opacity-0 group-hover:opacity-100"
+          className="text-ink-3 hover:text-red-500 transition-colors p-0.5 opacity-0 group-hover:opacity-100"
           aria-label="Delete theme"
         >
-          ✕
+          <Icons.close size={13} />
         </button>
       </div>
 
