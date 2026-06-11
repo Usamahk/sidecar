@@ -86,6 +86,19 @@ class SidecarDB extends Dexie {
       conversations: '++id, updatedAt, createdAt',
       messages: '++id, conversationId, createdAt, role',
     })
+    this.version(7).stores({
+      items: '++id, url, domain, date, createdAt, *themeIds, *conceptIds',
+      themes: '++id, name',
+      concepts: '++id, name',
+      edges: '++id, fromId, toId, type',
+      attachments: '++id, itemId, createdAt',
+      settings: 'key',
+      suggestions: '++id, kind, scanId, themeId, conceptId, createdAt',
+      rejections: '++id, kind, itemId, themeId, conceptId, proposedNameLower, [itemId+themeId], [itemId+conceptId]',
+      fileHandles: 'key',
+      conversations: '++id, updatedAt, createdAt',
+      messages: '++id, conversationId, createdAt, role',
+    })
   }
 }
 

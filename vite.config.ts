@@ -24,6 +24,9 @@ export default defineConfig({
       // reached in the extension; externalize node builtins so the dead chunk
       // doesn't break the browser build.
       external: [/^node:/],
+      input: {
+        graph: path.resolve(__dirname, 'src/graph/index.html'),
+      },
     },
   },
   server: {

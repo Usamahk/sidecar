@@ -4,6 +4,7 @@ import { db } from '@/db/schema'
 import { addMessage, createConversation, deleteConversation } from '@/db/agent'
 import { chatWithAgent, AgentChatError } from '@/ai/agent/chat'
 import { Icons } from '../components/Icons'
+import { getAgentPrefill, clearAgentPrefill } from '@/sidepanel/state/agentPrefill'
 import type { AgentCitation, AgentResponseMode, AgentMessage } from '@/types'
 
 export function AgentView() {
@@ -34,6 +35,15 @@ export function AgentView() {
       setActiveConversationId(conversations[0].id!)
     }
   }, [conversations, activeConversationId])
+
+  // Pick up a prefilled prompt from the graph view, if any.
+  useEffect(() => {
+    const pending = getAgentPrefill()
+    if (pending) {
+      setInput(pending)
+      clearAgentPrefill()
+    }
+  }, [])
 
   useEffect(() => {
     db.settings.get('agentUseWebDefault').then((row) => {

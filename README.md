@@ -26,10 +26,11 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 - Press `⌘↵` (or `Ctrl↵`) to capture, `Esc` to clear
 
 ### Source tagging
-- Every item is automatically tagged with its source type: **Newsletter**, **Website**, or **Internal**
+- Every item is automatically tagged with one of six source types: **Newsletter**, **Website**, **Twitter/X**, **Reddit**, **Product**, or **Internal**
   - Pages on `mail.google.com` are tagged Newsletter and attempt to extract the sender name from the open email
-  - All other pages are tagged Website
-  - Internal is for personal notes, company events, or anything you want to add manually
+  - `twitter.com` / `x.com` pages are tagged Twitter; `reddit.com` pages are tagged Reddit
+  - Other public pages are tagged Website by default
+  - **Product** and **Internal** are user-assigned — use Product for tool/landing-page captures, Internal for personal notes or company events
 - Click the source tag on any item to change it via a dropdown, and edit the sender/label field alongside it
 
 ### Timeline
@@ -86,19 +87,79 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 
 **Retrieval design note.** Retrieval is currently a single ranked Fuse.js pass over the corpus, with score boosts for theme match, notes match, and recency. **Revisit when** typical corpora exceed ~2000 items or paraphrastic queries start missing items the user knows are there — at that point consider HyDE (a Haiku-written hypothetical-answer expansion fused with the original query) or a true embeddings provider (Voyage, local MiniLM via `transformers.js`, or whatever Anthropic ships), which can slot in beneath the existing context-assembly pipeline.
 
+### Knowledge graph
+- An interactive node-link diagram lives in the **Graph** tab. Three node kinds: **items** (neutral), **themes** (their assigned color), and **concepts** (coral accent).
+- **Concept extraction** — separate from theme Scan, the **Extract** button (under the Graph tab) runs a Claude tool-use call that pulls named entities — people, products, technologies, papers — out of your captures. Reviewable in a queue, with the same rejection-memory pattern as themes.
+- **Derived edges** — for v1, item↔theme and item↔concept links come straight from `themeIds` / `conceptIds`; theme↔theme, concept↔concept, and theme↔concept co-occurrence links are derived in-memory from items that carry both (minimum weight of 2). Nothing is materialized to disk except the existing item-theme rows.
+- **Filters & search** — toggle node types on/off, type into the highlight box to fade non-matching nodes. Click any node to see its connections; a Sidebar/detail panel shows the underlying content. Empty graph → empty state with a hint to extract concepts or tag themes.
+- **Pop-out** — the side panel is narrow; click **Pop out** to open the graph in a full Chrome tab, with the same canvas plus a richer right-side detail panel. Same IndexedDB, so the panel and the pop-out stay in sync.
+- **Agent crossover** — selecting any node and clicking **Ask agent** switches to the Agent tab with the prompt pre-filled to interrogate that item / theme / concept.
+
 ### Settings
-- Store your Anthropic API key locally (used by the scan and the agent)
+- Store your Anthropic API key locally (used by scan, concept extract, and the agent)
 - Pick the scan model — Sonnet 4.6 (default) or Haiku 4.5 (cheaper, rougher proposals)
+- Pick the concept extract model — Sonnet 4.6 (default) or Haiku 4.5
 - Pick the agent model — Opus 4.7 (default), Sonnet 4.6, or Haiku 4.5
 - Agent defaults — web augmentation on/off, response mode (detailed/concise), and how many corpus items to pull into context (1–12)
 - Clear all data from the danger zone
 
 ---
 
+## How to use it
+
+A happy-path walkthrough from first install to a fully-connected knowledge graph. Most steps build on the previous one — the order matters.
+
+### 1. First-run setup
+1. Build the extension (`npm install && npm run build`) and load `dist/` as an unpacked extension at `chrome://extensions` with **Developer mode** on.
+2. Click the Sidecar icon in the toolbar — the side panel opens.
+3. Go to the **Settings** tab and paste your Anthropic API key. Pick a scan model, concept-extract model, and agent model (defaults are fine).
+4. *Optional but recommended:* click **Connect backup folder** in Settings and point at a synced folder (iCloud / Dropbox / Drive). Auto-snapshots start immediately.
+
+### 2. Capture some items
+1. With the side panel open, browse to any newsletter, article, tweet, or page you want to remember.
+2. Select text on the page, copy it, then paste into the capture bar at the top of the **Timeline** tab. Hit `⌘↵` (or `Ctrl↵`) to save.
+3. The URL, domain, and today's date are auto-filled. Source type is auto-detected (Newsletter / Twitter / Reddit / Website).
+4. Add 10–20 items across different topics to make the next steps interesting.
+
+### 3. Organize into themes
+1. Go to the **Themes** tab. Either:
+   - Create a few themes manually (click **+ new theme**, name it, pick a color), or
+   - Click **Scan** at the top of the Themes tab. Claude reads your corpus and proposes both new themes and item-to-theme assignments.
+2. In the **Review** queue that appears, approve / reject each proposal and assignment. Rejected items are remembered — they won't come back in the next scan.
+3. On the timeline, click **+ theme** on any item to manually assign one too.
+
+### 4. Extract concepts
+1. Go to the **Graph** tab. At the top you'll see the **Extract** button.
+2. Toggle the scope — **Untagged** (items with no concepts yet) or **All** (re-run over everything). Click **Extract**.
+3. The cost-confirm popover shows the item count and rough token estimate. Click **Extract** to send.
+4. A **Concept review** queue appears with two sections:
+   - **New concepts** — name + supporting items. Click to expand; rename inline before approving.
+   - **Tag suggestions** — existing concepts → items, grouped per concept. Per-row ✓/✗ or bulk approve/reject.
+
+### 5. Explore the graph
+1. Below the review queue, the graph canvas renders. Items are neutral, themes carry their own color, concepts are coral.
+2. Use the type-filter chips (Items / Themes / Concepts) to focus.
+3. Type in the **Highlight** box to fade non-matching nodes.
+4. Click any node — its connections highlight, and a detail panel opens. From an item node you can open its source; from a theme or concept you see all linked items.
+5. For a roomier view, click **Pop out** in the Graph tab header to open the graph in a full Chrome tab.
+
+### 6. Ask the agent about a node
+1. With any graph node selected, click **Ask agent** in the detail panel.
+2. The view switches to the **Agent** tab and the prompt is pre-filled to interrogate that item / theme / concept.
+3. Hit `⌘↵` to send. The answer cites the items it pulled from (`[S#]`), and — if web augmentation is on — any Wikipedia sources (`[W#]`).
+4. Follow-up prompts in the same thread keep the conversation context.
+
+### 7. Iterate
+1. Capture more items as you browse. Items added since the last scan show up in the **Untagged** scope so re-running Scan / Extract only touches the new stuff.
+2. Open the graph periodically — new items wire themselves into the existing structure via their themes and concepts.
+3. If a backup folder is connected, every change auto-saves; you can move between machines by pointing a new install at the same folder and clicking **Restore from folder** in Settings.
+
+---
+
 ## Coming soon
 
-### Visual knowledge graph (Phase 4)
-An interactive node-link diagram of your entire research corpus. Items, themes, and AI-extracted concepts appear as nodes; relationships between them as edges. Click any node to open the item or filter the timeline. Node size reflects connection count.
+### User-asserted edges (v2.0)
+The graph's structural edges are derived in-memory today — they come straight from item↔theme / item↔concept membership plus co-occurrence over your corpus. v2.0 will add **manual edges**: a "this relates to that" gesture on any two nodes that materializes to the existing `edges` table, persists across sessions, and shows up alongside the derived ones. Useful for asserting connections the model didn't catch (e.g. "this paper is the response to that paper"). The schema is already in place; only the UI and persistence are deferred.
 
 ---
 
@@ -114,7 +175,7 @@ An interactive node-link diagram of your entire research corpus. Items, themes, 
 | Markdown | react-markdown + remark-gfm |
 | AI | Anthropic SDK (claude-opus-4-7 / claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, adaptive thinking + prompt caching for the agent, lazy-loaded |
 | Backup | File System Access API (auto-snapshot to user-chosen folder) + persisted IndexedDB |
-| Graph (upcoming) | react-force-graph-2d |
+| Graph | react-force-graph-2d (in-panel canvas + pop-out full-page tab) |
 | Export | file-saver |
 
 ---

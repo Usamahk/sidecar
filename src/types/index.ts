@@ -61,18 +61,23 @@ export interface StoredHandle {
   createdAt: number
 }
 
-export type SuggestionKind = 'assignment' | 'proposal'
+export type SuggestionKind =
+  | 'assignment'
+  | 'proposal'
+  | 'concept-assignment'
+  | 'concept-proposal'
 
 export interface Rejection {
   id?: number
   kind: SuggestionKind
   createdAt: number
 
-  // For 'assignment': the (item, theme) pair the user said no to
+  // For 'assignment' / 'concept-assignment': the (item, target) pair the user said no to
   itemId?: number
   themeId?: number
+  conceptId?: number
 
-  // For 'proposal': the normalized lowercase name we should not re-suggest
+  // For 'proposal' / 'concept-proposal': the normalized lowercase name we should not re-suggest
   proposedNameLower?: string
 }
 
@@ -82,15 +87,16 @@ export interface Suggestion {
   scanId: string
   createdAt: number
 
-  // For 'assignment': tag an existing item with an existing theme
+  // For 'assignment' / 'concept-assignment': tag an existing item with an existing theme or concept
   itemId?: number
   themeId?: number
+  conceptId?: number
   confidence?: number   // 0..1
 
-  // For 'proposal': a new theme name + items that would belong to it
+  // For 'proposal' / 'concept-proposal': a new theme/concept name + items that would belong to it
   proposedName?: string
   proposedDescription?: string
-  proposedColor?: string
+  proposedColor?: string         // themes only — concepts use the type-level coral accent
   supportingItemIds?: number[]
 }
 

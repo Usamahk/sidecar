@@ -56,7 +56,7 @@ export async function getAllItems(): Promise<ResearchItem[]> {
   return db.items.orderBy('createdAt').reverse().toArray()
 }
 
-export const BACKUP_FORMAT_VERSION = 3
+export const BACKUP_FORMAT_VERSION = 4
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer()

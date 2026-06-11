@@ -33,7 +33,7 @@ export function App() {
       <main className="flex-1 overflow-hidden">
         {view === 'timeline' && <TimelineView />}
         {view === 'themes' && <ThemesView />}
-        {view === 'graph' && <GraphView />}
+        {view === 'graph' && <GraphView onChangeView={setView} />}
         {view === 'agent' && <AgentView />}
         {view === 'settings' && <SettingsPanel mode={mode} setTheme={setTheme} />}
       </main>
