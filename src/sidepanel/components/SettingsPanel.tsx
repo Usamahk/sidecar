@@ -20,7 +20,7 @@ import {
 } from '@/db/backup'
 import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
-import { DEFAULT_CONCEPT_MODEL } from '@/ai/extractConcepts'
+import { DEFAULT_INSIGHT_MODEL } from '@/ai/surfaceInsights'
 import type { ThemeMode } from '@/hooks/useTheme'
 import type { AgentResponseMode, Setting } from '@/types'
 import { Icons } from './Icons'
@@ -30,9 +30,9 @@ const SCAN_MODELS: { id: string; label: string; hint: string }[] = [
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', hint: 'Cheaper, faster · rougher proposals' },
 ]
 
-const CONCEPT_MODELS: { id: string; label: string; hint: string }[] = [
-  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Recommended · catches subtler entities' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', hint: 'Cheaper, faster · obvious names only' },
+const INSIGHT_MODELS: { id: string; label: string; hint: string }[] = [
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Recommended · sharper cross-theme reasoning' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', hint: 'Cheaper, faster · noisier observations' },
 ]
 
 const AGENT_MODELS: { id: string; label: string; hint: string }[] = [
@@ -56,7 +56,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState('')
   const [saved, setSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
-  const [conceptModel, setConceptModel] = useState(DEFAULT_CONCEPT_MODEL)
+  const [insightModel, setInsightModel] = useState(DEFAULT_INSIGHT_MODEL)
   const [agentModel, setAgentModel] = useState('claude-opus-4-7')
   const [agentUseWebDefault, setAgentUseWebDefault] = useState(false)
   const [agentResponseMode, setAgentResponseMode] = useState<AgentResponseMode>('detailed')
@@ -79,7 +79,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   useEffect(() => {
     db.settings.get('anthropicApiKey').then((s: Setting | undefined) => { if (s?.value) setApiKey(s.value) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
-    db.settings.get('conceptModel').then((s: Setting | undefined) => { if (s?.value) setConceptModel(s.value) })
+    db.settings.get('insightModel').then((s: Setting | undefined) => { if (s?.value) setInsightModel(s.value) })
     db.settings.get('agentModel').then((s: Setting | undefined) => { if (s?.value) setAgentModel(s.value) })
     db.settings.get('agentUseWebDefault').then((s: Setting | undefined) => { if (s?.value === 'true') setAgentUseWebDefault(true) })
     db.settings.get('agentResponseMode').then((s: Setting | undefined) => {
@@ -106,9 +106,9 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
     await db.settings.put({ key: 'scanModel', value: id })
   }
 
-  async function handleConceptModelChange(id: string) {
-    setConceptModel(id)
-    await db.settings.put({ key: 'conceptModel', value: id })
+  async function handleInsightModelChange(id: string) {
+    setInsightModel(id)
+    await db.settings.put({ key: 'insightModel', value: id })
   }
 
   async function handleAgentModelChange(id: string) {
@@ -216,7 +216,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
 
   async function handleClearAll() {
     if (!confirm('Delete all captured items? This cannot be undone.')) return
-    await Promise.all([db.items.clear(), db.edges.clear(), db.concepts.clear(), db.attachments.clear()])
+    await Promise.all([db.items.clear(), db.edges.clear(), db.insights.clear(), db.attachments.clear()])
   }
 
   const sectionTitle = 'text-sm font-semibold text-ink mb-3'
@@ -289,25 +289,25 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
           ))}
         </div>
 
-        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Concept extract model</label>
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Insight surfacing model</label>
         <div className="space-y-1.5">
-          {CONCEPT_MODELS.map((m) => (
+          {INSIGHT_MODELS.map((m) => (
             <button
               key={m.id}
-              onClick={() => handleConceptModelChange(m.id)}
+              onClick={() => handleInsightModelChange(m.id)}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors
-                ${conceptModel === m.id
+                ${insightModel === m.id
                   ? 'bg-accent/10 border-accent'
                   : 'bg-surface-2 border-line hover:border-line-strong'
                 }`}
             >
               <div className="min-w-0">
-                <div className={`text-xs font-medium ${conceptModel === m.id ? 'text-accent' : 'text-ink'}`}>
+                <div className={`text-xs font-medium ${insightModel === m.id ? 'text-accent' : 'text-ink'}`}>
                   {m.label}
                 </div>
                 <div className="text-[11px] text-ink-3">{m.hint}</div>
               </div>
-              {conceptModel === m.id && <Icons.check size={14} stroke={2} />}
+              {insightModel === m.id && <Icons.check size={14} stroke={2} />}
             </button>
           ))}
         </div>
@@ -538,7 +538,7 @@ function ImportSummaryList({ summary, exportedAt }: { summary: ImportSummary; ex
   const rows: Array<[string, number]> = [
     ['Items', summary.items],
     ['Themes', summary.themes],
-    ['Concepts', summary.concepts],
+    ['Insights', summary.insights],
     ['Attachments', summary.attachments],
     ['Suggestions', summary.suggestions],
     ['Rejections', summary.rejections],

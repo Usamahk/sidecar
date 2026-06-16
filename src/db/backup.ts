@@ -152,7 +152,7 @@ export function wireAutoBackupHooks(): void {
   hooksWired = true
 
   const tables = [
-    db.items, db.themes, db.concepts, db.edges,
+    db.items, db.themes, db.insights, db.edges,
     db.attachments, db.settings, db.suggestions, db.rejections,
     db.conversations, db.messages,
   ]

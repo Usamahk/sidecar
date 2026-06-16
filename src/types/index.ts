@@ -12,7 +12,6 @@ export interface ResearchItem {
   sourceType: SourceType
   sourceSender: string  // newsletter sender name, or label for internal items
   themeIds: number[]
-  conceptIds: number[]
   createdAt: number
   updatedAt: number
 }
@@ -25,19 +24,28 @@ export interface Theme {
   createdAt: number
 }
 
-export interface Concept {
+/**
+ * An emergent pattern the AI surfaced from looking across themes — a claim about
+ * what threads are forming in the corpus. Insights embed their own evidence
+ * (themeIds + itemIds) rather than being tagged onto items the way themes are.
+ */
+export interface Insight {
   id?: number
-  name: string
-  description: string
+  headline: string          // short claim, e.g. "Rise of robotics startup chatter"
+  rationale: string         // 1–2 sentences explaining the pattern
+  themeIds: number[]        // supporting themes (the substrate)
+  itemIds: number[]         // supporting items (the evidence)
+  strength: number          // 0..1 model confidence in the pattern
+  generatedAt: number       // ms epoch when this insight was created
 }
 
 export interface Edge {
   id?: number
   fromId: number
-  fromType: 'item' | 'theme' | 'concept'
+  fromType: 'item' | 'theme' | 'insight'
   toId: number
-  toType: 'item' | 'theme' | 'concept'
-  type: 'item-theme' | 'item-concept' | 'item-item' | 'concept-concept'
+  toType: 'item' | 'theme' | 'insight'
+  type: 'item-theme' | 'insight-theme' | 'insight-item'
   weight: number
 }
 
@@ -62,22 +70,21 @@ export interface StoredHandle {
 }
 
 export type SuggestionKind =
-  | 'assignment'
-  | 'proposal'
-  | 'concept-assignment'
-  | 'concept-proposal'
+  | 'assignment'         // (item, theme) tagging suggestion
+  | 'proposal'           // proposed new theme
+  | 'insight-proposal'   // proposed emergent insight (theme co-occurrence pattern)
 
 export interface Rejection {
   id?: number
   kind: SuggestionKind
   createdAt: number
 
-  // For 'assignment' / 'concept-assignment': the (item, target) pair the user said no to
+  // For theme 'assignment': the (item, theme) pair the user said no to
   itemId?: number
   themeId?: number
-  conceptId?: number
 
-  // For 'proposal' / 'concept-proposal': the normalized lowercase name we should not re-suggest
+  // For 'proposal' / 'insight-proposal': normalized lowercase headline
+  // we should not re-propose.
   proposedNameLower?: string
 }
 
@@ -87,17 +94,22 @@ export interface Suggestion {
   scanId: string
   createdAt: number
 
-  // For 'assignment' / 'concept-assignment': tag an existing item with an existing theme or concept
+  // For theme 'assignment'
   itemId?: number
   themeId?: number
-  conceptId?: number
-  confidence?: number   // 0..1
+  confidence?: number
 
-  // For 'proposal' / 'concept-proposal': a new theme/concept name + items that would belong to it
+  // For theme 'proposal'
   proposedName?: string
   proposedDescription?: string
-  proposedColor?: string         // themes only — concepts use the type-level coral accent
+  proposedColor?: string
   supportingItemIds?: number[]
+
+  // For 'insight-proposal'
+  proposedHeadline?: string
+  proposedRationale?: string
+  supportingThemeIds?: number[]
+  strength?: number       // 0..1
 }
 
 export type AgentResponseMode = 'concise' | 'detailed'

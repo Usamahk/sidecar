@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/schema'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
@@ -10,23 +11,15 @@ function applyTheme(mode: ThemeMode) {
   document.documentElement.classList.toggle('dark', isDark)
 }
 
+// Live-queried so multiple tabs (the side panel + the graph pop-out) stay in
+// sync — Dexie's liveQuery broadcasts changes across same-origin tabs.
 export function useTheme() {
-  const [mode, setModeState] = useState<ThemeMode>('dark')
+  const row = useLiveQuery(() => db.settings.get('themeMode'), [])
+  const mode = (row?.value ?? 'dark') as ThemeMode
 
-  // Load persisted setting on mount
-  useEffect(() => {
-    db.settings.get('themeMode').then((s) => {
-      const saved = (s?.value ?? 'dark') as ThemeMode
-      setModeState(saved)
-      applyTheme(saved)
-    })
-  }, [])
-
-  // Re-apply whenever mode changes, and watch system changes if needed
   useEffect(() => {
     applyTheme(mode)
     if (mode !== 'system') return
-
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = () => applyTheme('system')
     mq.addEventListener('change', handler)
@@ -34,9 +27,10 @@ export function useTheme() {
   }, [mode])
 
   function setTheme(m: ThemeMode) {
+    // Apply locally right away so the click feels instant; the persisted write
+    // then broadcasts the change to any other open tabs.
     applyTheme(m)
-    setModeState(m)
-    db.settings.put({ key: 'themeMode', value: m })
+    void db.settings.put({ key: 'themeMode', value: m })
   }
 
   return { mode, setTheme }

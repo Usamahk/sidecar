@@ -35,7 +35,6 @@ export async function addItem(
     sourceType: detectSourceType(partial.url),
     sourceSender: partial.sourceSender ?? '',
     themeIds: [],
-    conceptIds: [],
     createdAt: now,
     updatedAt: now,
   })
@@ -79,7 +78,7 @@ export interface BackupPayload {
   schemaVersion: number
   items: any[]
   themes: any[]
-  concepts: any[]
+  insights: any[]
   edges: any[]
   attachments: Array<{
     id?: number
@@ -97,10 +96,10 @@ export interface BackupPayload {
 }
 
 export async function exportAllData(): Promise<BackupPayload> {
-  const [items, themes, concepts, edges, attachmentRows, settings, suggestions, rejections, conversations, messages] = await Promise.all([
+  const [items, themes, insights, edges, attachmentRows, settings, suggestions, rejections, conversations, messages] = await Promise.all([
     db.items.toArray(),
     db.themes.toArray(),
-    db.concepts.toArray(),
+    db.insights.toArray(),
     db.edges.toArray(),
     db.attachments.toArray(),
     db.settings.toArray(),
@@ -127,7 +126,7 @@ export async function exportAllData(): Promise<BackupPayload> {
     schemaVersion: db.verno,
     items,
     themes,
-    concepts,
+    insights,
     edges,
     attachments,
     settings,
@@ -141,7 +140,7 @@ export async function exportAllData(): Promise<BackupPayload> {
 export interface ImportSummary {
   items: number
   themes: number
-  concepts: number
+  insights: number
   edges: number
   attachments: number
   settings: number
@@ -155,7 +154,7 @@ export function summarize(payload: BackupPayload): ImportSummary {
   return {
     items: payload.items?.length ?? 0,
     themes: payload.themes?.length ?? 0,
-    concepts: payload.concepts?.length ?? 0,
+    insights: payload.insights?.length ?? 0,
     edges: payload.edges?.length ?? 0,
     attachments: payload.attachments?.length ?? 0,
     settings: payload.settings?.length ?? 0,
@@ -177,7 +176,7 @@ export function validateBackup(raw: unknown): BackupPayload {
     schemaVersion: p.schemaVersion ?? 0,
     items: p.items,
     themes: p.themes,
-    concepts: p.concepts ?? [],
+    insights: p.insights ?? (p as any).concepts ?? [],
     edges: p.edges ?? [],
     attachments: p.attachments ?? [],
     settings: p.settings ?? [],
@@ -191,12 +190,12 @@ export function validateBackup(raw: unknown): BackupPayload {
 export async function importAllData(payload: BackupPayload): Promise<ImportSummary> {
   await db.transaction(
     'rw',
-    [db.items, db.themes, db.concepts, db.edges, db.attachments, db.settings, db.suggestions, db.rejections, db.conversations, db.messages],
+    [db.items, db.themes, db.insights, db.edges, db.attachments, db.settings, db.suggestions, db.rejections, db.conversations, db.messages],
     async () => {
       await Promise.all([
         db.items.clear(),
         db.themes.clear(),
-        db.concepts.clear(),
+        db.insights.clear(),
         db.edges.clear(),
         db.attachments.clear(),
         db.suggestions.clear(),
@@ -207,7 +206,7 @@ export async function importAllData(payload: BackupPayload): Promise<ImportSumma
 
       if (payload.items.length > 0) await db.items.bulkAdd(payload.items as any)
       if (payload.themes.length > 0) await db.themes.bulkAdd(payload.themes as any)
-      if (payload.concepts.length > 0) await db.concepts.bulkAdd(payload.concepts as any)
+      if (payload.insights.length > 0) await db.insights.bulkAdd(payload.insights as any)
       if (payload.edges.length > 0) await db.edges.bulkAdd(payload.edges as any)
       if (payload.suggestions.length > 0) await db.suggestions.bulkAdd(payload.suggestions as any)
       if (payload.rejections.length > 0) await db.rejections.bulkAdd(payload.rejections as any)

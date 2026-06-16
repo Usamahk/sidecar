@@ -88,17 +88,23 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 **Retrieval design note.** Retrieval is currently a single ranked Fuse.js pass over the corpus, with score boosts for theme match, notes match, and recency. **Revisit when** typical corpora exceed ~2000 items or paraphrastic queries start missing items the user knows are there — at that point consider HyDE (a Haiku-written hypothetical-answer expansion fused with the original query) or a true embeddings provider (Voyage, local MiniLM via `transformers.js`, or whatever Anthropic ships), which can slot in beneath the existing context-assembly pipeline.
 
 ### Knowledge graph
-- An interactive node-link diagram lives in the **Graph** tab. Three node kinds: **items** (neutral), **themes** (their assigned color), and **concepts** (coral accent).
-- **Concept extraction** — separate from theme Scan, the **Extract** button (under the Graph tab) runs a Claude tool-use call that pulls named entities — people, products, technologies, papers — out of your captures. Reviewable in a queue, with the same rejection-memory pattern as themes.
-- **Derived edges** — for v1, item↔theme and item↔concept links come straight from `themeIds` / `conceptIds`; theme↔theme, concept↔concept, and theme↔concept co-occurrence links are derived in-memory from items that carry both (minimum weight of 2). Nothing is materialized to disk except the existing item-theme rows.
-- **Filters & search** — toggle node types on/off, type into the highlight box to fade non-matching nodes. Click any node to see its connections; a Sidebar/detail panel shows the underlying content. Empty graph → empty state with a hint to extract concepts or tag themes.
-- **Pop-out** — the side panel is narrow; click **Pop out** to open the graph in a full Chrome tab, with the same canvas plus a richer right-side detail panel. Same IndexedDB, so the panel and the pop-out stay in sync.
-- **Agent crossover** — selecting any node and clicking **Ask agent** switches to the Agent tab with the prompt pre-filled to interrogate that item / theme / concept.
+- An interactive node-link diagram lives in the **Graph** tab. Two tiers of nodes: **items** (raw captures, neutral) and **themes** (your buckets, in their assigned color). The third tier — **insights** — doesn't render as a node; insights appear as **ambient translucent blobs** wrapping the themes + items they're grounded in, each in a different colour from a cycling palette so they're distinguishable.
+- **Insight surfacing** — the **Surface insights** button (under the Graph tab) sends your themes, their item samples, and the theme-overlap matrix to Claude with a tool-use call. The model returns short claims like _"Rise of robotics-startup chatter"_ — each grounded in 2+ themes and the supporting items.
+- **Insights are reviewable** — proposals show headline, rationale, the contributing theme chips, supporting items, and a strength score. Approve to materialize as a blob in the graph; reject to teach the next pass not to re-propose it.
+- **Ambient blobs** — every approved insight renders as a faded blob at all times with the headline pill floating at its centroid. Selecting one (by clicking inside the blob or picking it from the list) saturates that blob and **fades every non-supporting node and link**, the same way selecting a node does.
+- **Sidebar lives on insights** — the right rail (pop-out) and the right pane below the canvas (in-panel) are anchored on the **Insights list**. Selecting an insight expands its detail above the list — list stays visible so you can jump between insights without closing detail.
+- **Drill navigation with Back** — every detail panel supports drill-through:
+  - Click a **theme** node → sidebar shows the theme's full item list.
+  - Click any item snippet (in a theme list, in an insight's grounding items, etc.) → sidebar drills to the item's full markdown content.
+  - A **Back** chevron at the top pops to the previous selection — theme → item → back to theme list, or insight → item → back to insight.
+- **Pop-out tab + auto-handoff** — click **Pop out** to open the graph in a full Chrome tab. The side panel detects via `BroadcastChannel` heartbeat that the pop-out is alive and replaces its canvas with a "view graph in pop-out" placeholder; close the tab and the side-panel canvas returns. Insights list + surfacing + review queue stay live in both places.
+- **Derived edges** — item↔theme links come from `themeIds`; theme↔theme co-occurrence is computed in-memory (min weight 2). Insights track their evidence via `insight.themeIds` + `insight.itemIds` — that's what shapes the blob.
+- **Filters, search, multi-select** — type-filter chips toggle Items / Themes / Insights independently (turning off Insights hides all blobs). Highlight search fades non-matching nodes. ⌘/Ctrl/Shift-click on theme/item nodes enters compare mode with set ops (union / intersection / exclusive / only-in-X) over their item sets.
 
 ### Settings
-- Store your Anthropic API key locally (used by scan, concept extract, and the agent)
+- Store your Anthropic API key locally (used by scan, insight surfacing, and the agent)
 - Pick the scan model — Sonnet 4.6 (default) or Haiku 4.5 (cheaper, rougher proposals)
-- Pick the concept extract model — Sonnet 4.6 (default) or Haiku 4.5
+- Pick the insight surfacing model — Sonnet 4.6 (default) or Haiku 4.5
 - Pick the agent model — Opus 4.7 (default), Sonnet 4.6, or Haiku 4.5
 - Agent defaults — web augmentation on/off, response mode (detailed/concise), and how many corpus items to pull into context (1–12)
 - Clear all data from the danger zone
@@ -112,7 +118,7 @@ A happy-path walkthrough from first install to a fully-connected knowledge graph
 ### 1. First-run setup
 1. Build the extension (`npm install && npm run build`) and load `dist/` as an unpacked extension at `chrome://extensions` with **Developer mode** on.
 2. Click the Sidecar icon in the toolbar — the side panel opens.
-3. Go to the **Settings** tab and paste your Anthropic API key. Pick a scan model, concept-extract model, and agent model (defaults are fine).
+3. Go to the **Settings** tab and paste your Anthropic API key. Pick a scan model, insight surfacing model, and agent model (defaults are fine).
 4. *Optional but recommended:* click **Connect backup folder** in Settings and point at a synced folder (iCloud / Dropbox / Drive). Auto-snapshots start immediately.
 
 ### 2. Capture some items
@@ -128,38 +134,44 @@ A happy-path walkthrough from first install to a fully-connected knowledge graph
 2. In the **Review** queue that appears, approve / reject each proposal and assignment. Rejected items are remembered — they won't come back in the next scan.
 3. On the timeline, click **+ theme** on any item to manually assign one too.
 
-### 4. Extract concepts
-1. Go to the **Graph** tab. At the top you'll see the **Extract** button.
-2. Toggle the scope — **Untagged** (items with no concepts yet) or **All** (re-run over everything). Click **Extract**.
-3. The cost-confirm popover shows the item count and rough token estimate. Click **Extract** to send.
-4. A **Concept review** queue appears with two sections:
-   - **New concepts** — name + supporting items. Click to expand; rename inline before approving.
-   - **Tag suggestions** — existing concepts → items, grouped per concept. Per-row ✓/✗ or bulk approve/reject.
+### 4. Surface insights
+1. Go to the **Graph** tab. At the top you'll see the **Surface insights** button. It's only enabled once you have themes — insights are *patterns across themes*, so themes are a prerequisite.
+2. Click it. The cost-confirm popover shows how many themes + items are about to be sent, plus a token estimate. Click **Surface** to send.
+3. An **Insights to review** queue appears. Each proposal carries:
+   - **Headline** — a short claim (e.g. "Rise of robotics-startup chatter"). Click to rename.
+   - **Rationale** — 1–2 sentences explaining the pattern.
+   - **Theme chips** — the themes whose interplay surfaces this insight.
+   - **Grounding items** — expand to see the captures the model is leaning on.
+   - **Strength** — strong / medium / weak.
+4. Approve to materialize the insight as a node; reject to teach the next pass not to re-propose it.
+5. If no insights come back, the panel will say so explicitly — usually means your corpus is still single-theme heavy.
 
 ### 5. Explore the graph
-1. Below the review queue, the graph canvas renders. Items are neutral, themes carry their own color, concepts are coral.
-2. Use the type-filter chips (Items / Themes / Concepts) to focus.
+1. Below the review queue, the graph canvas renders. Items and themes appear as nodes; **insights appear as ambient translucent blobs** wrapping the themes + items each one is grounded in, with the headline floating at the centroid.
+2. Use the type-filter chips (Items / Themes / Insights) to focus. Turning off **Insights** hides every blob; turning it back on restores them.
 3. Type in the **Highlight** box to fade non-matching nodes.
-4. Click any node — its connections highlight, and a detail panel opens. From an item node you can open its source; from a theme or concept you see all linked items.
-5. For a roomier view, click **Pop out** in the Graph tab header to open the graph in a full Chrome tab.
+4. **Find an insight** in one of two ways:
+   - Click anywhere inside a blob on the canvas — it saturates, every non-supporting node fades back, and the **Insights list** in the sidebar scrolls to that insight with its detail expanded above.
+   - Pick it directly from the **Insights list** in the sidebar.
+5. **Drill into themes and items**:
+   - Click a theme node → sidebar shows every item tagged with that theme.
+   - Click any item snippet (in a theme list, in an insight's grounding items, anywhere) → sidebar drills to the item's full markdown content.
+   - The **Back** chevron at the top of the detail panel pops one step — theme list → item → back to theme list, or insight → item → back to insight.
+6. **⌘/Ctrl/Shift-click** two or more theme/item nodes to enter compare mode — a Compare panel takes over the sidebar with set-ops (Union / Intersection / Exclusive / Only-in-X) over the selected nodes' item sets.
+7. For a roomier view, click **Pop out** in the Graph tab header to open the graph in a full Chrome tab. The side panel notices and replaces its canvas with a "view graph in pop-out" placeholder while the pop-out is open — close that tab and the side-panel canvas comes back. Insights list + Surface insights + review queue stay usable in both windows simultaneously.
 
-### 6. Ask the agent about a node
-1. With any graph node selected, click **Ask agent** in the detail panel.
-2. The view switches to the **Agent** tab and the prompt is pre-filled to interrogate that item / theme / concept.
-3. Hit `⌘↵` to send. The answer cites the items it pulled from (`[S#]`), and — if web augmentation is on — any Wikipedia sources (`[W#]`).
-4. Follow-up prompts in the same thread keep the conversation context.
-
-### 7. Iterate
-1. Capture more items as you browse. Items added since the last scan show up in the **Untagged** scope so re-running Scan / Extract only touches the new stuff.
-2. Open the graph periodically — new items wire themselves into the existing structure via their themes and concepts.
-3. If a backup folder is connected, every change auto-saves; you can move between machines by pointing a new install at the same folder and clicking **Restore from folder** in Settings.
+### 6. Iterate
+1. Capture more items as you browse. Items added since the last scan show up in the **Untagged** scope so re-running Scan only touches the new stuff.
+2. Re-run **Surface insights** whenever your theme structure shifts meaningfully — insights age, and the model will catch new threads once you've added new items / themes.
+3. Open the graph periodically — new items wire themselves into the existing structure via their themes, and existing insights' blobs grow to include any newly-tagged grounding items.
+4. If a backup folder is connected, every change auto-saves; you can move between machines by pointing a new install at the same folder and clicking **Restore from folder** in Settings.
 
 ---
 
 ## Coming soon
 
 ### User-asserted edges (v2.0)
-The graph's structural edges are derived in-memory today — they come straight from item↔theme / item↔concept membership plus co-occurrence over your corpus. v2.0 will add **manual edges**: a "this relates to that" gesture on any two nodes that materializes to the existing `edges` table, persists across sessions, and shows up alongside the derived ones. Useful for asserting connections the model didn't catch (e.g. "this paper is the response to that paper"). The schema is already in place; only the UI and persistence are deferred.
+The graph's structural edges are derived in-memory today — item↔theme membership plus theme↔theme co-occurrence. Insights track their own evidence (`themeIds` + `itemIds`) and drive the blob shape. v2.0 will add **manual edges**: a "this relates to that" gesture on any two nodes that materializes to the existing `edges` table, persists across sessions, and shows up alongside the derived ones. Useful for asserting connections the model didn't catch (e.g. "this paper is the response to that paper"). The schema is already in place; only the UI and persistence are deferred.
 
 ---
 

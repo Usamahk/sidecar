@@ -38,5 +38,10 @@ async function buildPrompt(node: GraphNode): Promise<string> {
   if (node.type === 'theme') {
     return `What are the main threads across the items I've tagged with the theme "${node.label}"? Pull in the strongest connections.`
   }
-  return `What have I captured about "${node.label}"? Trace how this concept shows up across my items.`
+  // insight
+  const insight = await db.insights.get(node.refId)
+  if (!insight) {
+    return `Explore the insight "${node.label}" — what items and themes ground it, and what should I look at next?`
+  }
+  return `Tell me more about this insight from my corpus: "${insight.headline}". ${insight.rationale ? `The rationale was: "${insight.rationale}". ` : ''}What additional patterns or items should I look at to explore this further?`
 }

@@ -1,9 +1,7 @@
-import { ExtractConceptsPanel } from '../components/ExtractConceptsPanel'
-import { ConceptReviewQueue } from '../components/ConceptReviewQueue'
+import { InsightsPanel } from '../components/InsightsPanel'
+import { InsightReviewQueue } from '../components/InsightReviewQueue'
 import { GraphExplorer } from '../components/GraphExplorer'
 import { Icons } from '../components/Icons'
-import { setAgentPrefill } from '@/sidepanel/state/agentPrefill'
-import type { GraphNode } from '@/db/graph'
 import type { View } from '@/types'
 
 interface Props {
@@ -11,13 +9,9 @@ interface Props {
 }
 
 export function GraphView({ onChangeView }: Props) {
+  void onChangeView
   function handlePopOut() {
     chrome.tabs.create({ url: chrome.runtime.getURL('src/graph/index.html') })
-  }
-
-  function handleAskAgent(node: GraphNode) {
-    setAgentPrefill(node)
-    onChangeView('agent')
   }
 
   return (
@@ -32,10 +26,10 @@ export function GraphView({ onChangeView }: Props) {
           <Icons.link size={11} stroke={2} /> Pop out
         </button>
       </div>
-      <ExtractConceptsPanel />
-      <ConceptReviewQueue />
+      <InsightsPanel />
+      <InsightReviewQueue />
       <div className="flex-1 min-h-0">
-        <GraphExplorer variant="panel" onAskAgent={handleAskAgent} />
+        <GraphExplorer variant="panel" />
       </div>
     </div>
   )
