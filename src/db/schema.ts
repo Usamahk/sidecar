@@ -9,8 +9,6 @@ import type {
   Suggestion,
   Rejection,
   StoredHandle,
-  AgentConversation,
-  AgentMessage,
 } from '@/types'
 
 class SidecarDB extends Dexie {
@@ -23,8 +21,6 @@ class SidecarDB extends Dexie {
   suggestions!: EntityTable<Suggestion, 'id'>
   rejections!: EntityTable<Rejection, 'id'>
   fileHandles!: EntityTable<StoredHandle, 'key'>
-  conversations!: EntityTable<AgentConversation, 'id'>
-  messages!: EntityTable<AgentMessage, 'id'>
 
   constructor() {
     super('SidecarDB')
@@ -152,6 +148,22 @@ class SidecarDB extends Dexie {
           delete ref.value
         }
       })
+    })
+    // v9 retires the RAG chat agent. The conversations + messages tables are
+    // dropped; chat history is not migrated (the chat is replaced by the
+    // research builder, which writes durable artifacts to the OKF vault).
+    this.version(9).stores({
+      items: '++id, url, domain, date, createdAt, *themeIds',
+      themes: '++id, name',
+      insights: '++id, generatedAt, *themeIds, *itemIds',
+      edges: '++id, fromId, toId, type',
+      attachments: '++id, itemId, createdAt',
+      settings: 'key',
+      suggestions: '++id, kind, scanId, themeId, createdAt',
+      rejections: '++id, kind, itemId, themeId, proposedNameLower, [itemId+themeId]',
+      fileHandles: 'key',
+      conversations: null,
+      messages: null,
     })
   }
 }

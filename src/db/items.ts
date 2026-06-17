@@ -55,7 +55,7 @@ export async function getAllItems(): Promise<ResearchItem[]> {
   return db.items.orderBy('createdAt').reverse().toArray()
 }
 
-export const BACKUP_FORMAT_VERSION = 4
+export const BACKUP_FORMAT_VERSION = 5
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer()
@@ -91,12 +91,10 @@ export interface BackupPayload {
   settings: any[]
   suggestions: any[]
   rejections: any[]
-  conversations: any[]
-  messages: any[]
 }
 
 export async function exportAllData(): Promise<BackupPayload> {
-  const [items, themes, insights, edges, attachmentRows, settings, suggestions, rejections, conversations, messages] = await Promise.all([
+  const [items, themes, insights, edges, attachmentRows, settings, suggestions, rejections] = await Promise.all([
     db.items.toArray(),
     db.themes.toArray(),
     db.insights.toArray(),
@@ -105,8 +103,6 @@ export async function exportAllData(): Promise<BackupPayload> {
     db.settings.toArray(),
     db.suggestions.toArray(),
     db.rejections.toArray(),
-    db.conversations.toArray(),
-    db.messages.toArray(),
   ])
 
   const attachments = await Promise.all(
@@ -132,8 +128,6 @@ export async function exportAllData(): Promise<BackupPayload> {
     settings,
     suggestions,
     rejections,
-    conversations,
-    messages,
   }
 }
 
@@ -146,8 +140,6 @@ export interface ImportSummary {
   settings: number
   suggestions: number
   rejections: number
-  conversations: number
-  messages: number
 }
 
 export function summarize(payload: BackupPayload): ImportSummary {
@@ -160,8 +152,6 @@ export function summarize(payload: BackupPayload): ImportSummary {
     settings: payload.settings?.length ?? 0,
     suggestions: payload.suggestions?.length ?? 0,
     rejections: payload.rejections?.length ?? 0,
-    conversations: payload.conversations?.length ?? 0,
-    messages: payload.messages?.length ?? 0,
   }
 }
 
@@ -182,15 +172,13 @@ export function validateBackup(raw: unknown): BackupPayload {
     settings: p.settings ?? [],
     suggestions: p.suggestions ?? [],
     rejections: p.rejections ?? [],
-    conversations: p.conversations ?? [],
-    messages: p.messages ?? [],
   }
 }
 
 export async function importAllData(payload: BackupPayload): Promise<ImportSummary> {
   await db.transaction(
     'rw',
-    [db.items, db.themes, db.insights, db.edges, db.attachments, db.settings, db.suggestions, db.rejections, db.conversations, db.messages],
+    [db.items, db.themes, db.insights, db.edges, db.attachments, db.settings, db.suggestions, db.rejections],
     async () => {
       await Promise.all([
         db.items.clear(),
@@ -200,8 +188,6 @@ export async function importAllData(payload: BackupPayload): Promise<ImportSumma
         db.attachments.clear(),
         db.suggestions.clear(),
         db.rejections.clear(),
-        db.conversations.clear(),
-        db.messages.clear(),
       ])
 
       if (payload.items.length > 0) await db.items.bulkAdd(payload.items as any)
@@ -210,8 +196,6 @@ export async function importAllData(payload: BackupPayload): Promise<ImportSumma
       if (payload.edges.length > 0) await db.edges.bulkAdd(payload.edges as any)
       if (payload.suggestions.length > 0) await db.suggestions.bulkAdd(payload.suggestions as any)
       if (payload.rejections.length > 0) await db.rejections.bulkAdd(payload.rejections as any)
-      if (payload.conversations.length > 0) await db.conversations.bulkAdd(payload.conversations as any)
-      if (payload.messages.length > 0) await db.messages.bulkAdd(payload.messages as any)
 
       if (payload.attachments.length > 0) {
         const rows = payload.attachments.map((a) => ({

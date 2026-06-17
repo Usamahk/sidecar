@@ -7,7 +7,6 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'timeline', Icon: Icons.timeline, label: 'Timeline' },
   { view: 'themes',   Icon: Icons.themes,   label: 'Themes'   },
   { view: 'graph',    Icon: Icons.graph,    label: 'Graph'    },
-  { view: 'agent',    Icon: Icons.agent,    label: 'Agent'    },
   { view: 'settings', Icon: Icons.settings, label: 'Settings' },
 ]
 
