@@ -22,6 +22,7 @@ import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import { DEFAULT_INSIGHT_MODEL } from '@/ai/surfaceInsights'
 import { getApiKey as readApiKey, setApiKey as storeApiKey } from '@/ai/apiKey'
+import { MODELS, MANUAL_OUTPUT, getModelForRole, setModelForRole } from '@/ai/models'
 import type { ThemeMode } from '@/hooks/useTheme'
 import type { Setting } from '@/types'
 import { Icons } from './Icons'
@@ -52,6 +53,8 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [saved, setSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
   const [insightModel, setInsightModel] = useState(DEFAULT_INSIGHT_MODEL)
+  const [outputModel, setOutputModel] = useState('claude-sonnet-4-6')
+  const [voiceProfile, setVoiceProfile] = useState('')
 
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -71,6 +74,8 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
     readApiKey().then((k) => { if (k) setApiKey(k) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
     db.settings.get('insightModel').then((s: Setting | undefined) => { if (s?.value) setInsightModel(s.value) })
+    getModelForRole('output').then(setOutputModel)
+    db.settings.get('voiceProfile').then((s: Setting | undefined) => { if (s?.value) setVoiceProfile(s.value) })
     getPersistStatus().then(setPersistStatus)
     getBackupStatus().then(setBackupStatus)
     const unsub = subscribeBackupStatus(() => { getBackupStatus().then(setBackupStatus) })
@@ -91,6 +96,15 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   async function handleInsightModelChange(id: string) {
     setInsightModel(id)
     await db.settings.put({ key: 'insightModel', value: id })
+  }
+
+  async function handleOutputModelChange(id: string) {
+    setOutputModel(id)
+    await setModelForRole('output', id)
+  }
+
+  async function saveVoiceProfile() {
+    await db.settings.put({ key: 'voiceProfile', value: voiceProfile })
   }
 
   async function handleExportJSON() {
@@ -273,6 +287,28 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
             </button>
           ))}
         </div>
+
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Output model</label>
+        <select
+          value={outputModel}
+          onChange={(e) => handleOutputModelChange(e.target.value)}
+          className="w-full bg-surface-2 border border-line hover:border-line-strong rounded-lg px-2 py-2 text-xs text-ink-2 outline-none"
+        >
+          {MODELS.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+          <option value={MANUAL_OUTPUT}>Manual / hand off (no generation)</option>
+        </select>
+
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Writing voice</label>
+        <textarea
+          value={voiceProfile}
+          onChange={(e) => setVoiceProfile(e.target.value)}
+          onBlur={saveVoiceProfile}
+          rows={3}
+          placeholder="Describe the voice/audience/length for generated outputs, e.g. 'punchy, for technical founders, ~600 words'."
+          className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-2 py-2 text-xs text-ink placeholder-ink-3 resize-none outline-none"
+        />
       </div>
 
       <div>

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { db } from '@/db/schema'
 import { buildDossier, BuildError } from '@/ai/builder'
+import { generateOutput, OUTPUT_TEMPLATES, OutputError } from '@/ai/output'
 import { readConcept } from '@/vault'
 import { formatUsd } from '@/ai/models'
 import type { Insight, Theme } from '@/types'
@@ -23,6 +24,10 @@ export function ResearchView() {
   const [isBuilding, setIsBuilding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dossier, setDossier] = useState<string | null>(null)
+  const [templateId, setTemplateId] = useState(OUTPUT_TEMPLATES[0]?.id ?? 'newsletter')
+  const [output, setOutput] = useState<{ body: string; manual: boolean } | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [outputError, setOutputError] = useState<string | null>(null)
 
   const build = useLiveQuery(
     () => (selectedId == null ? undefined : db.builds.where('insightId').equals(selectedId).last()),
@@ -48,10 +53,36 @@ export function ResearchView() {
     }
   }, [build?.status, build?.dossierConceptId])
 
+  // Clear any rendered output when switching insights.
+  useEffect(() => {
+    setOutput(null)
+    setOutputError(null)
+    setError(null)
+  }, [selectedId])
+
+  async function handleGenerate() {
+    const conceptId = build?.status === 'done' ? build.dossierConceptId : undefined
+    if (!conceptId || generating) return
+    setOutputError(null)
+    setOutput(null)
+    setGenerating(true)
+    try {
+      const res = await generateOutput(conceptId, templateId)
+      setOutput(res.manual ? { body: res.dossier, manual: true } : { body: res.body, manual: false })
+    } catch (err) {
+      const msg = err instanceof OutputError ? err.message : err instanceof Error ? err.message : 'Generation failed'
+      setOutputError(msg)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   async function handleBuild() {
     if (selectedId == null || isBuilding) return
     setError(null)
     setDossier(null)
+    setOutput(null)
+    setOutputError(null)
     setIsBuilding(true)
     try {
       await buildDossier(selectedId)
@@ -176,6 +207,54 @@ export function ResearchView() {
                       ),
                     }}
                   >{dossier}</ReactMarkdown>
+                </div>
+
+                {/* Output generation */}
+                <div className="mt-4 pt-3 border-t border-line space-y-2">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={templateId}
+                      onChange={(e) => setTemplateId(e.target.value)}
+                      className="text-xs bg-surface-2 border border-line rounded-lg px-2 py-1.5 text-ink-2 outline-none"
+                    >
+                      {OUTPUT_TEMPLATES.map((t) => (
+                        <option key={t.id} value={t.id}>{t.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleGenerate}
+                      disabled={generating}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-line text-ink-2 hover:border-line-strong disabled:opacity-50"
+                    >
+                      {generating ? 'Generating…' : 'Generate output'}
+                    </button>
+                  </div>
+
+                  {outputError && (
+                    <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+                      {outputError}
+                    </div>
+                  )}
+
+                  {output && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 text-[10px] text-ink-3">
+                        <span>{output.manual ? 'Manual mode — copy the dossier and finish it in your tool of choice' : 'Generated output'}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(output.body)}
+                          className="ml-auto text-accent hover:opacity-80"
+                        >
+                          {output.manual ? 'Copy dossier' : 'Copy output'}
+                        </button>
+                      </div>
+                      {!output.manual && (
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-ink leading-relaxed
+                          prose-p:my-1 prose-headings:text-ink prose-a:text-accent">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{output.body}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
