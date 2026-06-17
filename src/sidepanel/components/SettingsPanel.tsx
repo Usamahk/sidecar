@@ -21,6 +21,7 @@ import {
 import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import { DEFAULT_INSIGHT_MODEL } from '@/ai/surfaceInsights'
+import { getApiKey as readApiKey, setApiKey as storeApiKey } from '@/ai/apiKey'
 import type { ThemeMode } from '@/hooks/useTheme'
 import type { Setting } from '@/types'
 import { Icons } from './Icons'
@@ -67,7 +68,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [persistStatus, setPersistStatus] = useState<PersistStatus>('transient')
 
   useEffect(() => {
-    db.settings.get('anthropicApiKey').then((s: Setting | undefined) => { if (s?.value) setApiKey(s.value) })
+    readApiKey().then((k) => { if (k) setApiKey(k) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
     db.settings.get('insightModel').then((s: Setting | undefined) => { if (s?.value) setInsightModel(s.value) })
     getPersistStatus().then(setPersistStatus)
@@ -77,7 +78,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   }, [])
 
   async function saveApiKey() {
-    await db.settings.put({ key: 'anthropicApiKey', value: apiKey })
+    await storeApiKey(apiKey)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { requestPersistentStorage } from '@/db/persistence'
 import { wireAutoBackupHooks } from '@/db/backup'
+import { migrateApiKeyFromSettings } from '@/ai/apiKey'
 import { CaptureBar } from './components/CaptureBar'
 import { NavBar } from './components/NavBar'
 import { Wordmark } from './components/Icons'
@@ -17,6 +18,7 @@ export function App() {
 
   useEffect(() => {
     void requestPersistentStorage()
+    void migrateApiKeyFromSettings()
     wireAutoBackupHooks()
   }, [])
 

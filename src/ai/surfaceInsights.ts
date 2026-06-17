@@ -2,8 +2,10 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { db } from '@/db/schema'
 import { getInsightRejections } from '@/db/suggestions'
 import type { ResearchItem, Theme } from '@/types'
+import { DEFAULT_ROLE_MODEL } from './models'
+import { getApiKey as readApiKey } from './apiKey'
 
-export const DEFAULT_INSIGHT_MODEL = 'claude-sonnet-4-6'
+export const DEFAULT_INSIGHT_MODEL = DEFAULT_ROLE_MODEL.insight
 const MAX_SNIPPET_CHARS = 280
 const MAX_ITEMS_PER_THEME = 4
 const COOCCUR_MIN_WEIGHT = 1
@@ -28,8 +30,7 @@ export class InsightError extends Error {
 }
 
 async function getApiKey(): Promise<string> {
-  const row = await db.settings.get('anthropicApiKey')
-  const key = row?.value?.trim()
+  const key = await readApiKey()
   if (!key) throw new InsightError('No Anthropic API key set. Add one in Settings.')
   return key
 }

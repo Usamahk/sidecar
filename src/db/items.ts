@@ -116,6 +116,10 @@ export async function exportAllData(): Promise<BackupPayload> {
     }))
   )
 
+  // Defense-in-depth: never export secrets. The API key lives in
+  // chrome.storage.local now, but filter any stale settings row just in case.
+  const safeSettings = settings.filter((s: any) => s?.key !== 'anthropicApiKey')
+
   return {
     formatVersion: BACKUP_FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
@@ -125,7 +129,7 @@ export async function exportAllData(): Promise<BackupPayload> {
     insights,
     edges,
     attachments,
-    settings,
+    settings: safeSettings,
     suggestions,
     rejections,
   }
@@ -215,6 +219,9 @@ export async function importAllData(payload: BackupPayload): Promise<ImportSumma
         if (s && typeof s.key === 'string') {
           // Skip the folder handle key — that's machine-local, not portable.
           if (s.key === 'backupFolderHandle') continue
+          // Never re-import the API key into IndexedDB (it lives in
+          // chrome.storage.local); old backups may still carry it.
+          if (s.key === 'anthropicApiKey') continue
           await db.settings.put(s)
         }
       }
