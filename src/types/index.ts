@@ -112,7 +112,40 @@ export interface Suggestion {
   strength?: number       // 0..1
 }
 
-export type View = 'timeline' | 'themes' | 'graph' | 'settings'
+export type BuildStatus =
+  | 'idle'
+  | 'resolving'
+  | 'researching'
+  | 'synthesizing'
+  | 'done'
+  | 'error'
+
+/** Per-insight research-build state, for progress display and checkpoint/resume. */
+export interface Build {
+  id?: number
+  insightId: number
+  status: BuildStatus
+  step: string               // human-readable progress label
+  resolvedItemIds: number[]  // items whose sources are already resolved (checkpoint)
+  dossierConceptId?: string  // OKF concept id of the produced dossier
+  costUsd: number            // accumulated estimated cost
+  error?: string
+  startedAt: number
+  updatedAt: number
+}
+
+export type SourceMethod = 'snippet' | 'fetch' | 'reddit-json' | 'web'
+
+/** Bookkeeping for a resolved source (the text itself lives in the vault). */
+export interface SourceCacheEntry {
+  itemId: number             // primary key
+  conceptId: string          // sources/<slug>-<id>
+  method: SourceMethod
+  needsWeb: boolean          // resolver could not get full text; research should web-search
+  resolvedAt: number
+}
+
+export type View = 'timeline' | 'themes' | 'graph' | 'research' | 'settings'
 
 export interface TabInfo {
   url: string

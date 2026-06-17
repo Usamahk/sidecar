@@ -9,6 +9,8 @@ import type {
   Suggestion,
   Rejection,
   StoredHandle,
+  Build,
+  SourceCacheEntry,
 } from '@/types'
 
 class SidecarDB extends Dexie {
@@ -21,6 +23,8 @@ class SidecarDB extends Dexie {
   suggestions!: EntityTable<Suggestion, 'id'>
   rejections!: EntityTable<Rejection, 'id'>
   fileHandles!: EntityTable<StoredHandle, 'key'>
+  builds!: EntityTable<Build, 'id'>
+  sourceCache!: EntityTable<SourceCacheEntry, 'itemId'>
 
   constructor() {
     super('SidecarDB')
@@ -164,6 +168,23 @@ class SidecarDB extends Dexie {
       fileHandles: 'key',
       conversations: null,
       messages: null,
+    })
+    // v10 adds the research-builder's local state: per-insight build progress
+    // (for the Research view + checkpoint/resume) and a source-resolution cache
+    // keyed by item. Both are derived/machine-local and are intentionally NOT
+    // part of the portable backup snapshot.
+    this.version(10).stores({
+      items: '++id, url, domain, date, createdAt, *themeIds',
+      themes: '++id, name',
+      insights: '++id, generatedAt, *themeIds, *itemIds',
+      edges: '++id, fromId, toId, type',
+      attachments: '++id, itemId, createdAt',
+      settings: 'key',
+      suggestions: '++id, kind, scanId, themeId, createdAt',
+      rejections: '++id, kind, itemId, themeId, proposedNameLower, [itemId+themeId]',
+      fileHandles: 'key',
+      builds: '++id, insightId, status, updatedAt',
+      sourceCache: 'itemId, conceptId, resolvedAt',
     })
   }
 }
