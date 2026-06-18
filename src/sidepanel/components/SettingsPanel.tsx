@@ -50,6 +50,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
   const [insightModel, setInsightModel] = useState(DEFAULT_INSIGHT_MODEL)
@@ -227,20 +228,42 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
       <div>
         <h2 className={sectionTitle}>AI Agent</h2>
         <label className="block text-xs text-ink-3 mb-1.5">Anthropic API Key</label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-ant-..."
-          className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-3 py-2
-            text-sm text-ink placeholder-ink-3 outline-none transition-colors mb-2"
-        />
-        <button onClick={saveApiKey}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-on-accent text-xs rounded-lg transition-colors font-medium">
-          {saved && <Icons.check size={14} />}
-          {saved ? 'Saved' : 'Save Key'}
-        </button>
-        <p className="text-xs text-ink-3 mt-2">Stored locally in Chrome — never leaves your browser.</p>
+        <div className="relative mb-2">
+          <input
+            type={showKey ? 'text' : 'password'}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-ant-..."
+            spellCheck={false}
+            autoComplete="off"
+            className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-3 py-2 pr-14
+              text-sm text-ink placeholder-ink-3 outline-none transition-colors font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-3 hover:text-ink-2"
+          >
+            {showKey ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={saveApiKey}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-on-accent text-xs rounded-lg transition-colors font-medium">
+            {saved && <Icons.check size={14} />}
+            {saved ? 'Saved' : 'Save Key'}
+          </button>
+          <button
+            onClick={() => { setApiKey(''); setShowKey(false); void storeApiKey('') }}
+            className="px-3 py-1.5 text-xs text-ink-3 hover:text-red-400 border border-line rounded-lg transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+        <p className="text-xs text-ink-3 mt-2">
+          Stored locally in Chrome — never leaves your browser. Use <strong>Show</strong> to confirm the full key
+          matches the one in your Anthropic console.
+        </p>
 
         <label className="block text-xs text-ink-3 mt-4 mb-1.5">Scan model</label>
         <div className="space-y-1.5">
