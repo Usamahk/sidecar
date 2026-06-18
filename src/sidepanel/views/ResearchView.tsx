@@ -14,7 +14,9 @@ import {
   type BackupStatus,
 } from '@/db/backup'
 import { formatUsd } from '@/ai/models'
-import type { Insight, Theme } from '@/types'
+import { evidenceHashForInsight } from '@/ai/freshness'
+import { ThemeWikiPanel } from '@/sidepanel/components/ThemeWikiPanel'
+import type { Insight, ResearchItem, Theme, VaultDoc } from '@/types'
 
 const STATUS_LABEL: Record<string, string> = {
   resolving: 'Resolving sources',
@@ -34,9 +36,14 @@ function download(filename: string, text: string) {
   saveAs(new Blob([text], { type: 'text/markdown;charset=utf-8' }), filename)
 }
 
+type Mode = 'insights' | 'themes'
+
 export function ResearchView() {
   const insights = useLiveQuery(() => db.insights.orderBy('generatedAt').reverse().toArray(), [])
   const themes = useLiveQuery(() => db.themes.toArray(), [])
+  const allItems = useLiveQuery(() => db.items.toArray(), [])
+  const vaultDocs = useLiveQuery(() => db.vaultDocs.toArray(), [])
+  const [mode, setMode] = useState<Mode>('insights')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [isBuilding, setIsBuilding] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +61,12 @@ export function ResearchView() {
 
   const themeById = new Map<number, Theme>((themes ?? []).map((t: Theme) => [t.id!, t]))
   const selected = (insights ?? []).find((i: Insight) => i.id === selectedId) ?? null
+
+  const dossierStale = (() => {
+    if (!selected || build?.status !== 'done' || !allItems) return false
+    const stored = (vaultDocs ?? []).find((d: VaultDoc) => d.kind === 'insight' && d.refId === selected.id)?.evidenceHash
+    return stored != null && stored !== evidenceHashForInsight(selected, allItems as ResearchItem[])
+  })()
 
   // Track vault (backup folder) connection so the user can connect from here.
   useEffect(() => {
@@ -153,7 +166,23 @@ export function ResearchView() {
         )}
       </div>
 
-      {insights.length === 0 ? (
+      {/* Mode toggle */}
+      <div className="px-3 py-1.5 border-b border-line bg-surface-1 flex items-center gap-1">
+        {(['insights', 'themes'] as Mode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors capitalize
+              ${mode === m ? 'bg-accent/15 border-accent text-accent' : 'border-line text-ink-3 hover:text-ink-2'}`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'themes' ? (
+        <ThemeWikiPanel />
+      ) : insights.length === 0 ? (
         <div className="p-6 text-xs text-ink-3 leading-relaxed">
           <p className="text-ink-2 font-medium mb-1">No insights yet.</p>
           <p>Surface some insights from the Themes tab, then come back to build research from one.</p>
@@ -204,6 +233,12 @@ export function ResearchView() {
                     {isBuilding ? 'Building…' : dossier ? 'Rebuild' : 'Build research'}
                   </button>
                 </div>
+
+                {dossierStale && !running && (
+                  <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-600 dark:text-amber-400">
+                    Sources changed since this dossier was built — Rebuild to refresh.
+                  </div>
+                )}
 
                 {running && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-2 border border-line text-xs text-ink-2">
