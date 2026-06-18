@@ -17,6 +17,7 @@ import { formatUsd } from '@/ai/models'
 import { evidenceHashForInsight } from '@/ai/freshness'
 import { ThemeWikiPanel } from '@/sidepanel/components/ThemeWikiPanel'
 import { WikiLintPanel } from '@/sidepanel/components/WikiLintPanel'
+import { AskPanel } from '@/sidepanel/components/AskPanel'
 import type { Insight, ResearchItem, Theme, VaultDoc } from '@/types'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -37,7 +38,7 @@ function download(filename: string, text: string) {
   saveAs(new Blob([text], { type: 'text/markdown;charset=utf-8' }), filename)
 }
 
-type Mode = 'insights' | 'themes' | 'health'
+type Mode = 'insights' | 'themes' | 'ask' | 'health'
 
 export function ResearchView() {
   const insights = useLiveQuery(() => db.insights.orderBy('generatedAt').reverse().toArray(), [])
@@ -169,7 +170,7 @@ export function ResearchView() {
 
       {/* Mode toggle */}
       <div className="px-3 py-1.5 border-b border-line bg-surface-1 flex items-center gap-1">
-        {(['insights', 'themes', 'health'] as Mode[]).map((m) => (
+        {(['insights', 'themes', 'ask', 'health'] as Mode[]).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
@@ -183,6 +184,8 @@ export function ResearchView() {
 
       {mode === 'themes' ? (
         <ThemeWikiPanel />
+      ) : mode === 'ask' ? (
+        <AskPanel />
       ) : mode === 'health' ? (
         <WikiLintPanel />
       ) : insights.length === 0 ? (
