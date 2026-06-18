@@ -21,8 +21,10 @@ import {
 import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import { DEFAULT_INSIGHT_MODEL } from '@/ai/surfaceInsights'
+import { getApiKey as readApiKey, setApiKey as storeApiKey } from '@/ai/apiKey'
+import { MODELS, MANUAL_OUTPUT, getModelForRole, setModelForRole } from '@/ai/models'
 import type { ThemeMode } from '@/hooks/useTheme'
-import type { AgentResponseMode, Setting } from '@/types'
+import type { Setting } from '@/types'
 import { Icons } from './Icons'
 
 const SCAN_MODELS: { id: string; label: string; hint: string }[] = [
@@ -33,12 +35,6 @@ const SCAN_MODELS: { id: string; label: string; hint: string }[] = [
 const INSIGHT_MODELS: { id: string; label: string; hint: string }[] = [
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Recommended · sharper cross-theme reasoning' },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', hint: 'Cheaper, faster · noisier observations' },
-]
-
-const AGENT_MODELS: { id: string; label: string; hint: string }[] = [
-  { id: 'claude-opus-4-7', label: 'Opus 4.7', hint: 'Best reasoning quality' },
-  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', hint: 'Balanced speed/quality' },
-  { id: 'claude-haiku-4-5', label: 'Haiku 4.5', hint: 'Fastest, cheapest' },
 ]
 
 const THEME_OPTIONS: { mode: ThemeMode; Icon: typeof Icons[string]; label: string }[] = [
@@ -54,13 +50,12 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
   const [insightModel, setInsightModel] = useState(DEFAULT_INSIGHT_MODEL)
-  const [agentModel, setAgentModel] = useState('claude-opus-4-7')
-  const [agentUseWebDefault, setAgentUseWebDefault] = useState(false)
-  const [agentResponseMode, setAgentResponseMode] = useState<AgentResponseMode>('detailed')
-  const [agentMaxContextItems, setAgentMaxContextItems] = useState(6)
+  const [outputModel, setOutputModel] = useState('claude-sonnet-4-6')
+  const [voiceProfile, setVoiceProfile] = useState('')
 
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -77,18 +72,11 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [persistStatus, setPersistStatus] = useState<PersistStatus>('transient')
 
   useEffect(() => {
-    db.settings.get('anthropicApiKey').then((s: Setting | undefined) => { if (s?.value) setApiKey(s.value) })
+    readApiKey().then((k) => { if (k) setApiKey(k) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
     db.settings.get('insightModel').then((s: Setting | undefined) => { if (s?.value) setInsightModel(s.value) })
-    db.settings.get('agentModel').then((s: Setting | undefined) => { if (s?.value) setAgentModel(s.value) })
-    db.settings.get('agentUseWebDefault').then((s: Setting | undefined) => { if (s?.value === 'true') setAgentUseWebDefault(true) })
-    db.settings.get('agentResponseMode').then((s: Setting | undefined) => {
-      if (s?.value === 'concise' || s?.value === 'detailed') setAgentResponseMode(s.value)
-    })
-    db.settings.get('agentMaxContextItems').then((s: Setting | undefined) => {
-      const n = Number(s?.value)
-      if (!Number.isNaN(n) && n > 0 && n <= 12) setAgentMaxContextItems(n)
-    })
+    getModelForRole('output').then(setOutputModel)
+    db.settings.get('voiceProfile').then((s: Setting | undefined) => { if (s?.value) setVoiceProfile(s.value) })
     getPersistStatus().then(setPersistStatus)
     getBackupStatus().then(setBackupStatus)
     const unsub = subscribeBackupStatus(() => { getBackupStatus().then(setBackupStatus) })
@@ -96,7 +84,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   }, [])
 
   async function saveApiKey() {
-    await db.settings.put({ key: 'anthropicApiKey', value: apiKey })
+    await storeApiKey(apiKey)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -111,24 +99,13 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
     await db.settings.put({ key: 'insightModel', value: id })
   }
 
-  async function handleAgentModelChange(id: string) {
-    setAgentModel(id)
-    await db.settings.put({ key: 'agentModel', value: id })
+  async function handleOutputModelChange(id: string) {
+    setOutputModel(id)
+    await setModelForRole('output', id)
   }
 
-  async function handleAgentUseWebDefaultChange(next: boolean) {
-    setAgentUseWebDefault(next)
-    await db.settings.put({ key: 'agentUseWebDefault', value: String(next) })
-  }
-
-  async function handleAgentResponseModeChange(next: AgentResponseMode) {
-    setAgentResponseMode(next)
-    await db.settings.put({ key: 'agentResponseMode', value: next })
-  }
-
-  async function handleAgentMaxContextItemsChange(next: number) {
-    setAgentMaxContextItems(next)
-    await db.settings.put({ key: 'agentMaxContextItems', value: String(next) })
+  async function saveVoiceProfile() {
+    await db.settings.put({ key: 'voiceProfile', value: voiceProfile })
   }
 
   async function handleExportJSON() {
@@ -251,20 +228,42 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
       <div>
         <h2 className={sectionTitle}>AI Agent</h2>
         <label className="block text-xs text-ink-3 mb-1.5">Anthropic API Key</label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-ant-..."
-          className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-3 py-2
-            text-sm text-ink placeholder-ink-3 outline-none transition-colors mb-2"
-        />
-        <button onClick={saveApiKey}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-on-accent text-xs rounded-lg transition-colors font-medium">
-          {saved && <Icons.check size={14} />}
-          {saved ? 'Saved' : 'Save Key'}
-        </button>
-        <p className="text-xs text-ink-3 mt-2">Stored locally in Chrome — never leaves your browser.</p>
+        <div className="relative mb-2">
+          <input
+            type={showKey ? 'text' : 'password'}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-ant-..."
+            spellCheck={false}
+            autoComplete="off"
+            className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-3 py-2 pr-14
+              text-sm text-ink placeholder-ink-3 outline-none transition-colors font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-3 hover:text-ink-2"
+          >
+            {showKey ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={saveApiKey}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-on-accent text-xs rounded-lg transition-colors font-medium">
+            {saved && <Icons.check size={14} />}
+            {saved ? 'Saved' : 'Save Key'}
+          </button>
+          <button
+            onClick={() => { setApiKey(''); setShowKey(false); void storeApiKey('') }}
+            className="px-3 py-1.5 text-xs text-ink-3 hover:text-red-400 border border-line rounded-lg transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+        <p className="text-xs text-ink-3 mt-2">
+          Stored locally in Chrome — never leaves your browser. Use <strong>Show</strong> to confirm the full key
+          matches the one in your Anthropic console.
+        </p>
 
         <label className="block text-xs text-ink-3 mt-4 mb-1.5">Scan model</label>
         <div className="space-y-1.5">
@@ -312,64 +311,27 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
           ))}
         </div>
 
-        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Agent model</label>
-        <div className="space-y-1.5">
-          {AGENT_MODELS.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => handleAgentModelChange(m.id)}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors
-                ${agentModel === m.id
-                  ? 'bg-accent/10 border-accent'
-                  : 'bg-surface-2 border-line hover:border-line-strong'
-                }`}
-            >
-              <div className="min-w-0">
-                <div className={`text-xs font-medium ${agentModel === m.id ? 'text-accent' : 'text-ink'}`}>
-                  {m.label}
-                </div>
-                <div className="text-[11px] text-ink-3">{m.hint}</div>
-              </div>
-              {agentModel === m.id && <Icons.check size={14} stroke={2} />}
-            </button>
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Output model</label>
+        <select
+          value={outputModel}
+          onChange={(e) => handleOutputModelChange(e.target.value)}
+          className="w-full bg-surface-2 border border-line hover:border-line-strong rounded-lg px-2 py-2 text-xs text-ink-2 outline-none"
+        >
+          {MODELS.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
           ))}
-        </div>
+          <option value={MANUAL_OUTPUT}>Manual / hand off (no generation)</option>
+        </select>
 
-        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Agent defaults</label>
-        <div className="space-y-2">
-          <button
-            onClick={() => handleAgentUseWebDefaultChange(!agentUseWebDefault)}
-            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors
-              ${agentUseWebDefault ? 'bg-accent/10 border-accent' : 'bg-surface-2 border-line hover:border-line-strong'}`}
-          >
-            <span className="text-xs text-ink-2">Enable web augmentation by default</span>
-            <span className={`text-xs ${agentUseWebDefault ? 'text-accent' : 'text-ink-3'}`}>
-              {agentUseWebDefault ? 'ON' : 'OFF'}
-            </span>
-          </button>
-
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={agentResponseMode}
-              onChange={(e) => handleAgentResponseModeChange(e.target.value as AgentResponseMode)}
-              className="bg-surface-2 border border-line hover:border-line-strong rounded-lg px-2 py-2 text-xs text-ink-2 outline-none"
-            >
-              <option value="detailed">Detailed responses</option>
-              <option value="concise">Concise responses</option>
-            </select>
-            <select
-              value={agentMaxContextItems}
-              onChange={(e) => handleAgentMaxContextItemsChange(Number(e.target.value))}
-              className="bg-surface-2 border border-line hover:border-line-strong rounded-lg px-2 py-2 text-xs text-ink-2 outline-none"
-            >
-              <option value={4}>4 context items</option>
-              <option value={6}>6 context items</option>
-              <option value={8}>8 context items</option>
-              <option value={10}>10 context items</option>
-              <option value={12}>12 context items</option>
-            </select>
-          </div>
-        </div>
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">Writing voice</label>
+        <textarea
+          value={voiceProfile}
+          onChange={(e) => setVoiceProfile(e.target.value)}
+          onBlur={saveVoiceProfile}
+          rows={3}
+          placeholder="Describe the voice/audience/length for generated outputs, e.g. 'punchy, for technical founders, ~600 words'."
+          className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-2 py-2 text-xs text-ink placeholder-ink-3 resize-none outline-none"
+        />
       </div>
 
       <div>
@@ -542,8 +504,6 @@ function ImportSummaryList({ summary, exportedAt }: { summary: ImportSummary; ex
     ['Attachments', summary.attachments],
     ['Suggestions', summary.suggestions],
     ['Rejections', summary.rejections],
-    ['Conversations', summary.conversations],
-    ['Messages', summary.messages],
     ['Edges', summary.edges],
   ]
   return (

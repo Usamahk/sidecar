@@ -112,40 +112,55 @@ export interface Suggestion {
   strength?: number       // 0..1
 }
 
-export type AgentResponseMode = 'concise' | 'detailed'
+export type BuildStatus =
+  | 'idle'
+  | 'resolving'
+  | 'researching'
+  | 'synthesizing'
+  | 'done'
+  | 'error'
 
-export interface AgentConversation {
+/** Per-insight research-build state, for progress display and checkpoint/resume. */
+export interface Build {
   id?: number
-  title: string
-  lastMessagePreview: string
-  createdAt: number
+  insightId: number
+  status: BuildStatus
+  step: string               // human-readable progress label
+  resolvedItemIds: number[]  // items whose sources are already resolved (checkpoint)
+  dossierConceptId?: string  // OKF concept id of the produced dossier
+  costUsd: number            // accumulated estimated cost
+  error?: string
+  startedAt: number
   updatedAt: number
 }
 
-export type CitationKind = 'item' | 'web'
+export type VaultDocKind = 'theme' | 'insight'
 
-export interface AgentCitation {
-  kind: CitationKind
-  refId: string
-  title: string
-  url?: string
-  snippet: string
-  itemId?: number
-  domain?: string
-  date?: string
+/**
+ * Index of a built OKF concept (theme page or insight dossier) and the evidence
+ * it was built from, so staleness can be derived by comparing the current
+ * evidence hash to the stored one. Local/derived — not in the backup snapshot.
+ */
+export interface VaultDoc {
+  conceptId: string          // primary key
+  kind: VaultDocKind
+  refId: number              // themeId or insightId
+  evidenceHash: string       // hash of the source set at build time
+  builtAt: number
 }
 
-export interface AgentMessage {
-  id?: number
-  conversationId: number
-  role: 'user' | 'assistant'
-  content: string
-  citations: AgentCitation[]
-  usedWeb: boolean
-  model: string
-  createdAt: number
+export type SourceMethod = 'snippet' | 'fetch' | 'reddit-json' | 'web'
+
+/** Bookkeeping for a resolved source (the text itself lives in the vault). */
+export interface SourceCacheEntry {
+  itemId: number             // primary key
+  conceptId: string          // sources/<slug>-<id>
+  method: SourceMethod
+  needsWeb: boolean          // resolver could not get full text; research should web-search
+  resolvedAt: number
 }
-export type View = 'timeline' | 'themes' | 'graph' | 'agent' | 'settings'
+
+export type View = 'timeline' | 'themes' | 'graph' | 'research' | 'settings'
 
 export interface TabInfo {
   url: string

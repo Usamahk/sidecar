@@ -2,8 +2,10 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { db } from '@/db/schema'
 import { getRejections } from '@/db/suggestions'
 import type { ResearchItem, Theme } from '@/types'
+import { DEFAULT_ROLE_MODEL } from './models'
+import { getApiKey as readApiKey } from './apiKey'
 
-export const DEFAULT_SCAN_MODEL = 'claude-sonnet-4-6'
+export const DEFAULT_SCAN_MODEL = DEFAULT_ROLE_MODEL.scan
 const MAX_CONTENT_CHARS = 800
 
 export interface ScanInputItem {
@@ -63,8 +65,7 @@ export function estimateTokens(items: ScanInputItem[], themes: ScanInputTheme[])
 }
 
 async function getApiKey(): Promise<string> {
-  const row = await db.settings.get('anthropicApiKey')
-  const key = row?.value?.trim()
+  const key = await readApiKey()
   if (!key) throw new ScanError('No Anthropic API key set. Add one in Settings.')
   return key
 }

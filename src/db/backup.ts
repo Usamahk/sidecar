@@ -55,6 +55,24 @@ async function ensurePermission(
   return req === 'granted'
 }
 
+/**
+ * Returns the connected folder handle with read-write permission ensured, or
+ * null if no folder is connected or permission was denied. The OKF vault is
+ * written into this same folder, alongside the JSON snapshot.
+ */
+export async function getWritableFolder(): Promise<FileSystemDirectoryHandle | null> {
+  const row = await db.fileHandles.get(HANDLE_KEY)
+  if (!row) return null
+  const granted = await ensurePermission(row.handle, 'readwrite')
+  if (!granted) {
+    permissionLost = true
+    notify()
+    return null
+  }
+  permissionLost = false
+  return row.handle
+}
+
 export async function connectBackupFolder(): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
   // @ts-ignore — showDirectoryPicker is FSA, only in Chromium-based browsers.
   if (typeof window.showDirectoryPicker !== 'function') {
@@ -154,7 +172,6 @@ export function wireAutoBackupHooks(): void {
   const tables = [
     db.items, db.themes, db.insights, db.edges,
     db.attachments, db.settings, db.suggestions, db.rejections,
-    db.conversations, db.messages,
   ]
   for (const table of tables) {
     table.hook('creating', () => { scheduleBackup() })

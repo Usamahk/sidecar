@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { requestPersistentStorage } from '@/db/persistence'
 import { wireAutoBackupHooks } from '@/db/backup'
+import { migrateApiKeyFromSettings } from '@/ai/apiKey'
 import { CaptureBar } from './components/CaptureBar'
 import { NavBar } from './components/NavBar'
 import { Wordmark } from './components/Icons'
 import { TimelineView } from './views/TimelineView'
 import { ThemesView } from './views/ThemesView'
 import { GraphView } from './views/GraphView'
-import { AgentView } from './views/AgentView'
+import { ResearchView } from './views/ResearchView'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { View } from '@/types'
 
@@ -18,6 +19,7 @@ export function App() {
 
   useEffect(() => {
     void requestPersistentStorage()
+    void migrateApiKeyFromSettings()
     wireAutoBackupHooks()
   }, [])
 
@@ -34,7 +36,7 @@ export function App() {
         {view === 'timeline' && <TimelineView />}
         {view === 'themes' && <ThemesView />}
         {view === 'graph' && <GraphView onChangeView={setView} />}
-        {view === 'agent' && <AgentView />}
+        {view === 'research' && <ResearchView />}
         {view === 'settings' && <SettingsPanel mode={mode} setTheme={setTheme} />}
       </main>
 
