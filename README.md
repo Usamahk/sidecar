@@ -12,9 +12,11 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 
 ## Screenshots
 
-| Timeline | Themes | Research |
-|---|---|---|
-| ![Timeline](docs/screenshots/timeline.png) | ![Themes](docs/screenshots/themes.png) | ![Research](docs/screenshots/research.png) |
+| Timeline | Themes |
+|---|---|
+| ![Timeline](docs/screenshots/timeline.png) | ![Themes](docs/screenshots/themes.png) |
+
+> _A Research-tab screenshot will be added once the new flow is captured._
 
 ---
 
