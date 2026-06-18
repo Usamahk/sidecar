@@ -2,7 +2,9 @@
 
 A Chrome extension that lives in your browser's side panel and acts as a persistent research workspace. As you browse newsletters, Reddit, Twitter, or any web page, you can capture quotes and content, annotate them with personal notes, track their source and date, and search across everything you've saved.
 
-Built as a local-first tool — all data stays in your browser (IndexedDB), with export options for backup and portability.
+Beyond capture, Sidecar turns what you've collected into **compounding research**: it surfaces cross-theme insights, then a Claude-powered builder researches an insight in depth and writes a structured **knowledge wiki** (open markdown, OKF format) you can ask questions against and spin into newsletter or blog drafts.
+
+Built as a local-first tool — all data stays in your browser (IndexedDB), with export options for backup and portability. The generated wiki is plain markdown written to a folder you choose (point it at an Obsidian vault if you like).
 
 The extension wears a warm-neutral identity: Instrument Serif for the wordmark and headings, Geist for the body, Geist Mono for the chrome (eyebrows, source tags, keyboard hints). The toolbar icon is a top-down motorcycle outline with a coral sidecar pod — the same mark sits in the panel header next to the wordmark. Day and night modes use the same coral accent over warm-neutral surfaces.
 
@@ -10,9 +12,9 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 
 ## Screenshots
 
-| Timeline | Themes | Agent |
+| Timeline | Themes | Research |
 |---|---|---|
-| ![Timeline](docs/screenshots/timeline.png) | ![Themes](docs/screenshots/themes.png) | ![Agent](docs/screenshots/agent.png) |
+| ![Timeline](docs/screenshots/timeline.png) | ![Themes](docs/screenshots/themes.png) | ![Research](docs/screenshots/research.png) |
 
 ---
 
@@ -69,23 +71,29 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 - Preference is persisted across sessions
 
 ### Backup & restore
-- **Connect a backup folder** (File System Access API) — point Sidecar at any folder on disk and it auto-writes a `sidecar-snapshot.json` there on every change (debounced ~2s)
-- Point the folder at iCloud Drive / Dropbox / Google Drive and you get free cross-device sync and version history from a service you already trust
+- **Connect a backup folder** (File System Access API) — point Sidecar at any folder on disk. It serves two roles:
+  - auto-writes a `sidecar-snapshot.json` (your restorable corpus) on every change (debounced ~2s), and
+  - hosts the **OKF knowledge bundle** the Research builder writes (`sources/`, `insights/`, `themes/`, `outputs/`, `notes/`, plus `index.md` + `log.md`). The two write paths are independent — chatting/building never re-serializes the corpus snapshot.
+- Point the folder at iCloud Drive / Dropbox / Google Drive (or an **Obsidian vault**) for free cross-device sync, version history, and a browsable wiki
 - **Restore from folder** loads the snapshot back, replacing local data
-- **Import JSON** picks a backup file directly (e.g. one of those auto-snapshots, or any prior export) — shows a summary modal of what's inside before replacing data
-- **Export JSON** is a full backup including attachments, settings, suggestions, and rejections (formatVersion 2 — base64-encoded blobs round-trip through import)
+- **Import JSON** picks a backup file directly — shows a summary modal of what's inside before replacing data
+- **Export JSON** is a full corpus backup including attachments, settings, suggestions, and rejections (base64-encoded blobs round-trip through import). The API key is **never** included; local/derived tables (builds, source cache, vault index) are excluded too.
 - **Export Markdown** — one entry per item, Obsidian-compatible YAML frontmatter
 - Storage status line shows whether the browser has marked IndexedDB as persistent (requested automatically on first launch)
 
-### AI research agent
-- A Claude-powered chat interface in the **Agent** tab that answers questions grounded in your captured corpus
-- **Corpus retrieval** — every prompt runs a ranked Fuse.js search over your items (content, notes, URLs, titles, sender), boosted by theme match, notes match, and recency, and the top hits are fed to the model as context
-- **Web augmentation** (optional toggle) — pulls Wikipedia search results + summaries into the context alongside your own items
-- **Inline citations** — answers cite sources as `[S#]` (Sidecar item) or `[W#]` (web), and only the sources the model actually used are surfaced under each reply
-- **Conversations** persist in IndexedDB — multiple threads, auto-titled from the first prompt, with recent history carried into follow-ups
-- Uses prompt caching on every request and adaptive thinking where the model supports it (Opus 4.7 / Sonnet 4.6 — not Haiku); runs against your local Anthropic API key
+### AI research builder & compounding wiki
+The **Research** tab turns an insight into durable, compounding research rather than a throwaway chat answer. It writes everything as an **OKF knowledge bundle** — a directory of markdown files with YAML frontmatter ([Open Knowledge Format](https://github.com/google/open-knowledge-format)) — into your connected backup folder, *alongside* the JSON snapshot. Point that folder at an Obsidian vault and you can browse, link, and graph the same files there; Sidecar is the writer, the vault is the readable artifact.
 
-**Retrieval design note.** Retrieval is currently a single ranked Fuse.js pass over the corpus, with score boosts for theme match, notes match, and recency. **Revisit when** typical corpora exceed ~2000 items or paraphrastic queries start missing items the user knows are there — at that point consider HyDE (a Haiku-written hypothetical-answer expansion fused with the original query) or a true embeddings provider (Voyage, local MiniLM via `transformers.js`, or whatever Anthropic ships), which can slot in beneath the existing context-assembly pipeline.
+The tab has four modes:
+
+- **Insights → dossier → output.** Pick an insight and click **Build research**. Sidecar gathers the insight's themes and items, **resolves each source** (source-aware: newsletters use your pasted snippet as the seed; articles are fetched + extracted; Reddit via its thread JSON; Twitter/X falls back to the snippet), optionally deepens via Claude's **web search**, and synthesizes a structured **dossier** (`insights/<slug>.md`) with thesis / evidence / findings / contradictions / citations. Progress and estimated cost show live; builds are checkpointed so a closed panel doesn't lose work. From a dossier you can **Generate** a **Newsletter** or **Blog post** — or set the output model to **Manual** and hand the dossier off to any tool. Dossiers and outputs persist (reloaded from the vault) and export as `.md`.
+- **Themes (theme pages).** Each theme gets a rolling synthesis page (`themes/<slug>.md`) — the cheap, always-current counterpart to the deep dossier. Refreshing a page **integrates only what changed** since the last build (preserving prior synthesis and flagging contradictions) rather than regenerating from scratch. Freshness dots show **not built / fresh / stale**; a batch **Refresh all stale** rebuilds everything that drifted.
+- **Ask (wiki-grounded Q&A).** Ask a question and the agent reads the bundle's `index.md`, drills into the relevant concepts (progressive disclosure), and answers **grounded only in your wiki**, with bundle-relative citations — not generic model knowledge. Good answers **Save to wiki** as `notes/*.md` so explorations compound too. The chat itself is ephemeral; durability comes from filing answers back.
+- **Health (lint).** A structural health check finds **stale** and **missing** theme pages, **stale dossiers**, and **orphaned sources** (whose item was deleted), each with a one-click fix.
+
+**Freshness** is derived, not flagged: each built page records a hash of the evidence it was built from (item ids + last-modified), and staleness is a live comparison against the current corpus — so badges update reactively as you capture and tag.
+
+**Retrieval design note.** The builder resolves and reads the actual sources rather than doing lexical retrieval; the Ask agent navigates by the OKF `index.md` + `read_concept` drill-down instead of embeddings. **Revisit if** a bundle grows large enough that index-driven navigation misses relevant pages — at that point a real embeddings provider (Voyage, local MiniLM via `transformers.js`, or whatever Anthropic ships) can slot in behind the same `read_concept` step. See `docs/PHASE5.md` for the full design.
 
 ### Knowledge graph
 - An interactive node-link diagram lives in the **Graph** tab. Two tiers of nodes: **items** (raw captures, neutral) and **themes** (your buckets, in their assigned color). The third tier — **insights** — doesn't render as a node; insights appear as **ambient translucent blobs** wrapping the themes + items they're grounded in, each in a different colour from a cycling palette so they're distinguishable.
@@ -102,11 +110,11 @@ The extension wears a warm-neutral identity: Instrument Serif for the wordmark a
 - **Filters, search, multi-select** — type-filter chips toggle Items / Themes / Insights independently (turning off Insights hides all blobs). Highlight search fades non-matching nodes. ⌘/Ctrl/Shift-click on theme/item nodes enters compare mode with set ops (union / intersection / exclusive / only-in-X) over their item sets.
 
 ### Settings
-- Store your Anthropic API key locally (used by scan, insight surfacing, and the agent)
+- Store your Anthropic API key — held in `chrome.storage.local` (not IndexedDB), so it is **never** written into the backup snapshot or vault. A **Show/Hide** toggle and **Clear** button let you verify exactly what's saved.
 - Pick the scan model — Sonnet 4.6 (default) or Haiku 4.5 (cheaper, rougher proposals)
 - Pick the insight surfacing model — Sonnet 4.6 (default) or Haiku 4.5
-- Pick the agent model — Opus 4.7 (default), Sonnet 4.6, or Haiku 4.5
-- Agent defaults — web augmentation on/off, response mode (detailed/concise), and how many corpus items to pull into context (1–12)
+- Pick the **output model** for generated newsletters/blogs — any Claude model, or **Manual** (no generation; you hand the dossier off elsewhere)
+- Set a **writing voice** — a reusable style/audience/length prompt injected into output generation so drafts sound like you
 - Clear all data from the danger zone
 
 ---
@@ -118,8 +126,8 @@ A happy-path walkthrough from first install to a fully-connected knowledge graph
 ### 1. First-run setup
 1. Build the extension (`npm install && npm run build`) and load `dist/` as an unpacked extension at `chrome://extensions` with **Developer mode** on.
 2. Click the Sidecar icon in the toolbar — the side panel opens.
-3. Go to the **Settings** tab and paste your Anthropic API key. Pick a scan model, insight surfacing model, and agent model (defaults are fine).
-4. *Optional but recommended:* click **Connect backup folder** in Settings and point at a synced folder (iCloud / Dropbox / Drive). Auto-snapshots start immediately.
+3. Go to the **Settings** tab and paste your Anthropic API key (use **Show** to confirm it). Pick a scan model, insight surfacing model, and output model (defaults are fine); optionally set a writing voice.
+4. *Recommended (required for the Research builder):* click **Connect backup folder** in Settings and point at a synced folder or an **Obsidian vault**. This stores the corpus snapshot **and** the OKF wiki the builder writes. Auto-snapshots start immediately.
 
 ### 2. Capture some items
 1. With the side panel open, browse to any newsletter, article, tweet, or page you want to remember.
@@ -160,7 +168,15 @@ A happy-path walkthrough from first install to a fully-connected knowledge graph
 6. **⌘/Ctrl/Shift-click** two or more theme/item nodes to enter compare mode — a Compare panel takes over the sidebar with set-ops (Union / Intersection / Exclusive / Only-in-X) over the selected nodes' item sets.
 7. For a roomier view, click **Pop out** in the Graph tab header to open the graph in a full Chrome tab. The side panel notices and replaces its canvas with a "view graph in pop-out" placeholder while the pop-out is open — close that tab and the side-panel canvas comes back. Insights list + Surface insights + review queue stay usable in both windows simultaneously.
 
-### 6. Iterate
+### 6. Build research, outputs, and Q&A
+1. Go to the **Research** tab (needs a connected vault folder + API key). It has four modes: **Insights · Themes · Ask · Health**.
+2. **Insights** — pick an insight and click **Build research**. Watch it resolve sources → research → write the dossier (step + cost show live). When it lands, read the dossier inline, then pick **Newsletter** or **Blog post** and **Generate** — or set the output model to **Manual** in Settings and use **Copy/Export** to finish the dossier elsewhere.
+3. **Themes** — build a theme's wiki page; capture/tag a new item into that theme and its dot turns **stale** — hit **Refresh** and it integrates just the new material. Use **Refresh all stale** to catch up everything at once.
+4. **Ask** — ask a question; the answer is grounded in your built wiki with citations. **Save to wiki** anything worth keeping.
+5. **Health** — run the check to find missing/stale pages and orphaned sources, and fix them in one click.
+6. Open the folder (or your Obsidian vault) to see the bundle: `sources/`, `insights/`, `themes/`, `outputs/`, `notes/`, with `index.md` + `log.md`.
+
+### 7. Iterate
 1. Capture more items as you browse. Items added since the last scan show up in the **Untagged** scope so re-running Scan only touches the new stuff.
 2. Re-run **Surface insights** whenever your theme structure shifts meaningfully — insights age, and the model will catch new threads once you've added new items / themes.
 3. Open the graph periodically — new items wire themselves into the existing structure via their themes, and existing insights' blobs grow to include any newly-tagged grounding items.
@@ -182,11 +198,12 @@ The graph's structural edges are derived in-memory today — item↔theme member
 | Extension | Chrome Manifest V3 + Side Panel API |
 | Build | Vite + `@crxjs/vite-plugin` + TypeScript |
 | UI | React 18 + Tailwind CSS, Geist + Instrument Serif + Geist Mono via Google Fonts, line-icon set in `components/Icons.tsx` |
-| Storage | Dexie.js (IndexedDB) |
-| Search | Fuse.js |
+| Storage | Dexie.js (IndexedDB) for the corpus; `chrome.storage.local` for the API key |
+| Search | Fuse.js (timeline search) |
 | Markdown | react-markdown + remark-gfm |
-| AI | Anthropic SDK (claude-opus-4-7 / claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, adaptive thinking + prompt caching for the agent, lazy-loaded |
-| Backup | File System Access API (auto-snapshot to user-chosen folder) + persisted IndexedDB |
+| AI | Anthropic SDK (claude-opus-4-8 / claude-sonnet-4-6 / claude-haiku-4-5), tool-use for structured output, server-side `web_search` in the builder, per-role model bindings, lazy-loaded |
+| Knowledge format | OKF markdown bundle (frontmatter + `index.md`/`log.md`) written via the File System Access API |
+| Backup | File System Access API (corpus snapshot + OKF vault to a user-chosen folder) + persisted IndexedDB |
 | Graph | react-force-graph-2d (in-panel canvas + pop-out full-page tab) |
 | Export | file-saver |
 
@@ -214,7 +231,12 @@ After reloading the extension, refresh any open tabs to reinitialise the content
 
 ## Data & privacy
 
-Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and either run **Scan** (which sends item snippets + notes to the Anthropic API for categorization) or chat with the **Agent** (which sends your prompt plus the retrieved item snippets, and — if web augmentation is on — fetches from Wikipedia). A cost-confirm popover shows the item count and rough token estimate before each scan. The API key itself never leaves your browser.
+Everything is stored locally in your browser's IndexedDB. Nothing is sent anywhere unless you enter an Anthropic API key and then run one of the AI actions:
+- **Scan** / **Surface insights** send item snippets + notes (and theme overlaps) to the Anthropic API.
+- **Build research** sends the insight's resolved source text and may **fetch the source URLs directly** (articles, Reddit JSON) and use Claude's **web search** to deepen the dossier.
+- **Generate output** and **Ask** send your dossier / wiki pages to the model.
+
+A cost-confirm popover precedes each scan/surface, and the builder and Ask show estimated cost as they run. The **API key lives in `chrome.storage.local`, not IndexedDB** — so it never enters the backup snapshot or the vault, and never leaves your browser. The generated wiki bundle is plain markdown in the folder you chose; it's yours.
 
 **Durability.** IndexedDB can be wiped if you clear site data in Chrome. Two protections:
 - Sidecar requests **persistent storage** on first launch (survives passive eviction under disk pressure).
