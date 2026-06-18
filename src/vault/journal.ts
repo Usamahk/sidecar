@@ -46,6 +46,11 @@ async function readRootFile(name: string): Promise<string | null> {
   }
 }
 
+/** Read the bundle's index.md catalog (null if not built yet). */
+export async function readIndex(): Promise<string | null> {
+  return readRootFile(INDEX_FILE)
+}
+
 function isoDate(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
