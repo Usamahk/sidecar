@@ -128,6 +128,12 @@ function buildBody(item: ResearchItem, resolved: ResolvedSource): string {
   return blocks.join('\n\n')
 }
 
+/** Deterministic OKF concept id for an item's source (stable across builds). */
+export function sourceConceptIdFor(item: ResearchItem): string {
+  const title = item.pageTitle || item.domain || `Source ${item.id}`
+  return conceptIdFor('sources', title, item.id!)
+}
+
 export interface EnsuredSource {
   conceptId: string
   method: SourceMethod
@@ -151,7 +157,7 @@ export async function ensureSourceConcept(
 
   const resolved = await resolveSource(item)
   const title = item.pageTitle || item.domain || `Source ${itemId}`
-  const conceptId = conceptIdFor('sources', title, itemId)
+  const conceptId = sourceConceptIdFor(item)
 
   await writeConcept({
     conceptId,

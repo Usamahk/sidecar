@@ -4,6 +4,7 @@ import type { Insight, ResearchItem, Theme } from '@/types'
 import { getApiKey } from '@/ai/apiKey'
 import { getModelForRole, estimateCostUsd, type TokenUsage } from '@/ai/models'
 import { ensureSourceConcept } from '@/ai/resolve'
+import { evidenceHashForInsight, recordBuilt } from '@/ai/freshness'
 import { writeConcept, conceptExists, conceptIdFor, rebuildIndex, appendLog } from '@/vault'
 import {
   startBuild,
@@ -36,6 +37,7 @@ interface GatherResult {
   themes: Theme[]
   themeNames: string[]
   items: ResearchItem[]
+  evidenceHash: string
 }
 
 async function gather(insightId: number): Promise<GatherResult> {
@@ -59,7 +61,13 @@ async function gather(insightId: number): Promise<GatherResult> {
     if (aNamed !== bNamed) return bNamed - aNamed
     return b.createdAt - a.createdAt
   })
-  return { insight, themes, themeNames, items: relevant.slice(0, MAX_ITEMS) }
+  return {
+    insight,
+    themes,
+    themeNames,
+    items: relevant.slice(0, MAX_ITEMS),
+    evidenceHash: evidenceHashForInsight(insight, allItems),
+  }
 }
 
 interface ResolvedRef {
@@ -200,6 +208,7 @@ export async function buildDossier(insightId: number): Promise<BuildOutcome> {
       body,
     })
 
+    await recordBuilt(conceptId, 'insight', insightId, g.evidenceHash)
     await rebuildIndex()
     await appendLog(existed ? 'Update' : 'Creation', `${existed ? 'Rebuilt' : 'Built'} dossier [${g.insight.headline}](/${conceptId}.md)`)
 
