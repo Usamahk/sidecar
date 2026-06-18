@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/schema'
 import { surfaceInsights, InsightError, estimateInsightTokens } from '@/ai/surfaceInsights'
 import { replaceInsightQueue } from '@/db/suggestions'
+import { useHasApiKey } from '@/hooks/useApiKey'
 
 type Status = 'idle' | 'confirming' | 'running' | 'error' | 'done'
 
@@ -14,7 +15,7 @@ export function InsightsPanel() {
 
   const itemCount = useLiveQuery(() => db.items.count(), [])
   const themeCount = useLiveQuery(() => db.themes.count(), [])
-  const apiKeyRow = useLiveQuery(() => db.settings.get('anthropicApiKey'), [])
+  const hasKey = useHasApiKey()
   const lastRow = useLiveQuery(() => db.settings.get('lastInsightAt'), [])
   const lastAt = lastRow?.value ? Number(lastRow.value) : null
 
@@ -24,7 +25,6 @@ export function InsightsPanel() {
     return estimateInsightTokens(themes, items)
   }, [themeCount, itemCount]) ?? 0
 
-  const hasKey = !!apiKeyRow?.value?.trim()
   const hasItems = (itemCount ?? 0) > 0
   const hasThemes = (themeCount ?? 0) > 0
   const canRun = hasKey && hasItems && hasThemes && status !== 'running'

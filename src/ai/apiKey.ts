@@ -26,6 +26,21 @@ export async function setApiKey(value: string): Promise<void> {
   }
 }
 
+/** Notify when the key's presence changes (e.g. saved/cleared in Settings). */
+export function subscribeApiKey(cb: (present: boolean) => void): () => void {
+  const handler = (
+    changes: { [k: string]: chrome.storage.StorageChange },
+    area: string
+  ) => {
+    if (area === 'local' && KEY in changes) {
+      const v = changes[KEY].newValue
+      cb(typeof v === 'string' && v.trim().length > 0)
+    }
+  }
+  chrome.storage.onChanged.addListener(handler)
+  return () => chrome.storage.onChanged.removeListener(handler)
+}
+
 /**
  * One-time migration: older builds stored the key in db.settings. If
  * chrome.storage.local has no key yet but a settings row exists, copy it over

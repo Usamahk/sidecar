@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/schema'
 import { scanCorpus, ScanError } from '@/ai/scan'
 import { replaceQueue } from '@/db/suggestions'
+import { useHasApiKey } from '@/hooks/useApiKey'
 import type { ResearchItem } from '@/types'
 
 type Status = 'idle' | 'confirming' | 'scanning' | 'error'
@@ -16,7 +17,7 @@ export function ScanPanel() {
 
   const itemCount = useLiveQuery(() => db.items.count(), [])
   const themeCount = useLiveQuery(() => db.themes.count(), [])
-  const apiKeyRow = useLiveQuery(() => db.settings.get('anthropicApiKey'), [])
+  const hasKey = useHasApiKey()
   const lastScanRow = useLiveQuery(() => db.settings.get('lastScanAt'), [])
 
   const untaggedCount = useLiveQuery(
@@ -34,7 +35,6 @@ export function ScanPanel() {
   }, [untaggedCount, itemCount, scope])
 
   const effectiveCount = scope === 'untagged' ? (untaggedCount ?? 0) : (itemCount ?? 0)
-  const hasKey = !!apiKeyRow?.value?.trim()
   const hasItems = effectiveCount > 0
   const canScan = hasKey && hasItems && status !== 'scanning'
 
