@@ -29,6 +29,11 @@ async function getVoiceProfile(): Promise<string> {
   return row?.value?.trim() ?? ''
 }
 
+/** The OKF concept id an output for (dossier title, template) is written to. */
+export function outputConceptId(baseTitle: string, templateId: string): string {
+  return `outputs/${slugify(baseTitle)}-${templateId}`
+}
+
 function extractText(message: Anthropic.Message): string {
   return message.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -89,7 +94,7 @@ export async function generateOutput(dossierConceptId: string, templateId: strin
   if (!body) throw new OutputError('The model returned an empty draft.', 'api')
 
   const baseTitle = dossier.title ?? dossierConceptId.split('/').pop()!
-  const conceptId = `outputs/${slugify(baseTitle)}-${template.id}`
+  const conceptId = outputConceptId(baseTitle, template.id)
   const existed = await conceptExists(conceptId)
   await writeConcept({
     conceptId,

@@ -26,6 +26,18 @@ export const OUTPUT_TEMPLATES: OutputTemplate[] = [
       'sources where they add credibility. Aim for ~500–800 words.',
     ].join(' '),
   },
+  {
+    id: 'blog',
+    label: 'Blog post',
+    okfType: 'Blog Draft',
+    structurePrompt: [
+      'Write a standalone blog post with a clear point of view.',
+      'Structure: a compelling title (# heading), a short intro that frames the',
+      'stakes, 3–5 body sections with ## subheadings that build an argument, and',
+      'a conclusion that lands the takeaway. Support claims with specifics and',
+      'source links from the dossier. Aim for ~800–1200 words.',
+    ].join(' '),
+  },
 ]
 
 export function getTemplate(id: string): OutputTemplate | undefined {
