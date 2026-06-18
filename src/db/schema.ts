@@ -11,6 +11,7 @@ import type {
   StoredHandle,
   Build,
   SourceCacheEntry,
+  VaultDoc,
 } from '@/types'
 
 class SidecarDB extends Dexie {
@@ -25,6 +26,7 @@ class SidecarDB extends Dexie {
   fileHandles!: EntityTable<StoredHandle, 'key'>
   builds!: EntityTable<Build, 'id'>
   sourceCache!: EntityTable<SourceCacheEntry, 'itemId'>
+  vaultDocs!: EntityTable<VaultDoc, 'conceptId'>
 
   constructor() {
     super('SidecarDB')
@@ -185,6 +187,24 @@ class SidecarDB extends Dexie {
       fileHandles: 'key',
       builds: '++id, insightId, status, updatedAt',
       sourceCache: 'itemId, conceptId, resolvedAt',
+    })
+    // v11 adds the compounding-wiki freshness index: which OKF concepts (theme
+    // pages, insight dossiers) have been built and the evidence hash they were
+    // built from. Staleness is derived by comparing to current evidence.
+    // Local/derived — excluded from the portable snapshot.
+    this.version(11).stores({
+      items: '++id, url, domain, date, createdAt, *themeIds',
+      themes: '++id, name',
+      insights: '++id, generatedAt, *themeIds, *itemIds',
+      edges: '++id, fromId, toId, type',
+      attachments: '++id, itemId, createdAt',
+      settings: 'key',
+      suggestions: '++id, kind, scanId, themeId, createdAt',
+      rejections: '++id, kind, itemId, themeId, proposedNameLower, [itemId+themeId]',
+      fileHandles: 'key',
+      builds: '++id, insightId, status, updatedAt',
+      sourceCache: 'itemId, conceptId, resolvedAt',
+      vaultDocs: 'conceptId, kind, refId',
     })
   }
 }

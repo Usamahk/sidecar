@@ -134,6 +134,21 @@ export interface Build {
   updatedAt: number
 }
 
+export type VaultDocKind = 'theme' | 'insight'
+
+/**
+ * Index of a built OKF concept (theme page or insight dossier) and the evidence
+ * it was built from, so staleness can be derived by comparing the current
+ * evidence hash to the stored one. Local/derived — not in the backup snapshot.
+ */
+export interface VaultDoc {
+  conceptId: string          // primary key
+  kind: VaultDocKind
+  refId: number              // themeId or insightId
+  evidenceHash: string       // hash of the source set at build time
+  builtAt: number
+}
+
 export type SourceMethod = 'snippet' | 'fetch' | 'reddit-json' | 'web'
 
 /** Bookkeeping for a resolved source (the text itself lives in the vault). */
