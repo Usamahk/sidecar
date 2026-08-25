@@ -194,66 +194,84 @@ export async function scanCorpus(
   const { default: AnthropicSDK } = await import('@anthropic-ai/sdk')
   const client = new AnthropicSDK({ apiKey, dangerouslyAllowBrowser: true })
 
-  const inputItems = prepareItemsForScan(items)
   const inputThemes: ScanInputTheme[] = themes.map((t) => ({
     id: t.id!,
     name: t.name,
     description: t.description ?? '',
   }))
 
-  let response: Anthropic.Message
-  try {
-    response = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      tools: [tool],
-      tool_choice: { type: 'tool', name: 'record_suggestions' },
-      messages: [{ role: 'user', content: buildPrompt(inputItems, inputThemes, rejections) }],
-    })
-  } catch (err) {
-    throw new ScanError(
-      err instanceof Error ? err.message : 'Anthropic API request failed',
-      err
+  // Scan in small batches. A single call over a large corpus (100+ items, dozens
+  // of themes) makes the model return an empty tool call; ~20-item batches keep
+  // each prompt focused enough for the model to actually do the work.
+  const BATCH_SIZE = 20
+  const batches: ResearchItem[][] = []
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    batches.push(items.slice(i, i + BATCH_SIZE))
+  }
+
+  const rawAssignments: RawAssignment[] = []
+  const rawProposals: Array<{ name?: string; description?: string; supportingItemIds?: number[] }> = []
+
+  for (const batch of batches) {
+    const inputItems = prepareItemsForScan(batch)
+    let response: Anthropic.Message
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: 8192,
+        tools: [tool],
+        tool_choice: { type: 'tool', name: 'record_suggestions' },
+        messages: [{ role: 'user', content: buildPrompt(inputItems, inputThemes, rejections) }],
+      })
+    } catch (err) {
+      throw new ScanError(
+        err instanceof Error ? err.message : 'Anthropic API request failed',
+        err
+      )
+    }
+
+    const toolBlock = response.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'record_suggestions'
     )
+    if (!toolBlock) continue
+    const raw = toolBlock.input as Partial<ScanResult>
+    if (Array.isArray(raw.assignments)) rawAssignments.push(...(raw.assignments as RawAssignment[]))
+    if (Array.isArray(raw.proposals)) rawProposals.push(...(raw.proposals as typeof rawProposals))
   }
 
-  const toolBlock = response.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'record_suggestions'
-  )
-  if (!toolBlock) {
-    throw new ScanError('Model did not return structured suggestions.')
-  }
-
-  const raw = toolBlock.input as Partial<ScanResult>
   const validItemIds = new Set(items.map((i) => i.id!))
   const validThemeIds = new Set(themes.map((t) => t.id!))
-
-  const rejectedPairs = new Set(
-    rejections.assignmentPairs.map(([i, t]) => `${i}:${t}`)
-  )
+  const rejectedPairs = new Set(rejections.assignmentPairs.map(([i, t]) => `${i}:${t}`))
   const rejectedNames = new Set(rejections.proposedNamesLower)
 
-  const assignments = (raw.assignments ?? []).filter(
-    (a) =>
-      typeof a.itemId === 'number' && validItemIds.has(a.itemId) &&
-      typeof a.themeId === 'number' && validThemeIds.has(a.themeId) &&
-      typeof a.confidence === 'number' &&
-      !rejectedPairs.has(`${a.itemId}:${a.themeId}`)
-  )
+  // Dedupe assignments across batches by (item, theme), keeping highest confidence.
+  const byPair = new Map<string, RawAssignment>()
+  for (const a of rawAssignments) {
+    if (typeof a.itemId !== 'number' || !validItemIds.has(a.itemId)) continue
+    if (typeof a.themeId !== 'number' || !validThemeIds.has(a.themeId)) continue
+    if (typeof a.confidence !== 'number') continue
+    if (rejectedPairs.has(`${a.itemId}:${a.themeId}`)) continue
+    const key = `${a.itemId}:${a.themeId}`
+    const prev = byPair.get(key)
+    if (!prev || a.confidence > prev.confidence) byPair.set(key, a)
+  }
+  const assignments = [...byPair.values()]
 
+  // Merge proposals across batches by name; union their supporting items.
   const existingNames = new Set(themes.map((t) => t.name.trim().toLowerCase()))
-  const proposals = (raw.proposals ?? []).filter((p) => {
-    if (typeof p.name !== 'string' || p.name.trim().length === 0) return false
+  const byName = new Map<string, { name: string; description: string; ids: Set<number> }>()
+  for (const p of rawProposals) {
+    if (typeof p.name !== 'string' || p.name.trim().length === 0) continue
     const nameLower = p.name.trim().toLowerCase()
-    if (existingNames.has(nameLower)) return false
-    if (rejectedNames.has(nameLower)) return false
-    return Array.isArray(p.supportingItemIds) &&
-      p.supportingItemIds.filter((id) => validItemIds.has(id)).length >= 2
-  }).map((p) => ({
-    name: p.name.trim(),
-    description: (p.description ?? '').trim(),
-    supportingItemIds: p.supportingItemIds.filter((id) => validItemIds.has(id)),
-  }))
+    if (existingNames.has(nameLower) || rejectedNames.has(nameLower)) continue
+    const entry = byName.get(nameLower) ?? { name: p.name.trim(), description: (p.description ?? '').trim(), ids: new Set<number>() }
+    for (const id of (p.supportingItemIds ?? [])) if (validItemIds.has(id)) entry.ids.add(id)
+    if (!entry.description && p.description) entry.description = p.description.trim()
+    byName.set(nameLower, entry)
+  }
+  const proposals: RawProposal[] = [...byName.values()]
+    .filter((p) => p.ids.size >= 2)
+    .map((p) => ({ name: p.name, description: p.description, supportingItemIds: [...p.ids] }))
 
   return { assignments, proposals }
 }
