@@ -1,6 +1,14 @@
 import type { ResearchItem, SourceMethod, SourceType } from '@/types'
 import { conceptIdFor, conceptExists, writeConcept } from '@/vault'
 import { getSourceCache, putSourceCache, isFresh } from '@/db/sourceCache'
+import { getDecisionMachine } from '@/ai/ms/client'
+import {
+  MS_RESOLVER_MIN_CHARS_FOR_CHECK,
+  MS_RESOLVER_MIN_PROBABILITY,
+  MS_RESOLVER_SAMPLE_CHARS,
+  RESOLVER_ARTICLE_STATEMENT,
+  RESOLVER_MIN_USEFUL_CHARS,
+} from '@/ai/ms/constants'
 
 /**
  * Source resolver: lazily turns a captured item into the best available source
@@ -19,7 +27,6 @@ export interface ResolvedSource {
 }
 
 const FETCH_TIMEOUT_MS = 12_000
-const MIN_USEFUL_CHARS = 600
 
 function snippetOf(item: ResearchItem): string {
   return (item.rawContent || item.content || '').trim()
@@ -71,6 +78,27 @@ async function resolveReddit(item: ResearchItem): Promise<ResolvedSource | null>
   }
 }
 
+/**
+ * Decide whether the extracted text is actually the article body (vs a paywall,
+ * cookie banner, 404, login wall, or pure navigation chrome). With a ms key,
+ * one yes-no replaces the fragile char-count cutoff. Without one, fall back to
+ * the legacy 600-char gate. A cheap pre-check skips the call on obviously-tiny
+ * blobs that can never be an article anyway.
+ */
+async function isUsableArticle(text: string): Promise<boolean> {
+  if (text.length < MS_RESOLVER_MIN_CHARS_FOR_CHECK) return false
+  const dm = await getDecisionMachine()
+  if (!dm) return text.length >= RESOLVER_MIN_USEFUL_CHARS
+  try {
+    const sample = text.slice(0, MS_RESOLVER_SAMPLE_CHARS)
+    const result = await dm.yesNo(sample, RESOLVER_ARTICLE_STATEMENT)
+    return result.answer && result.probability >= MS_RESOLVER_MIN_PROBABILITY
+  } catch (err) {
+    console.warn('[resolve] milliseconds article-gate failed, falling back to char count:', err)
+    return text.length >= RESOLVER_MIN_USEFUL_CHARS
+  }
+}
+
 async function resolveArticle(item: ResearchItem): Promise<ResolvedSource | null> {
   const resp = await fetchWithTimeout(item.url)
   if (!resp || !resp.ok) return null
@@ -79,7 +107,7 @@ async function resolveArticle(item: ResearchItem): Promise<ResolvedSource | null
   const html = await resp.text().catch(() => '')
   if (!html) return null
   const text = extractReadable(html)
-  if (text.length < MIN_USEFUL_CHARS) return null
+  if (!(await isUsableArticle(text))) return null
   return { text, method: 'fetch', needsWeb: false }
 }
 

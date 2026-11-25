@@ -22,6 +22,7 @@ import { getPersistStatus, type PersistStatus } from '@/db/persistence'
 import { DEFAULT_SCAN_MODEL } from '@/ai/scan'
 import { DEFAULT_INSIGHT_MODEL } from '@/ai/surfaceInsights'
 import { getApiKey as readApiKey, setApiKey as storeApiKey } from '@/ai/apiKey'
+import { getMsApiKey as readMsApiKey, setMsApiKey as storeMsApiKey } from '@/ai/msApiKey'
 import { MODELS, MANUAL_OUTPUT, getModelForRole, setModelForRole } from '@/ai/models'
 import type { ThemeMode } from '@/hooks/useTheme'
 import type { Setting } from '@/types'
@@ -52,6 +53,9 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [msApiKey, setMsApiKey] = useState('')
+  const [showMsKey, setShowMsKey] = useState(false)
+  const [msSaved, setMsSaved] = useState(false)
   const [scanModel, setScanModel] = useState(DEFAULT_SCAN_MODEL)
   const [insightModel, setInsightModel] = useState(DEFAULT_INSIGHT_MODEL)
   const [outputModel, setOutputModel] = useState('claude-sonnet-4-6')
@@ -73,6 +77,7 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
 
   useEffect(() => {
     readApiKey().then((k) => { if (k) setApiKey(k) })
+    readMsApiKey().then((k) => { if (k) setMsApiKey(k) })
     db.settings.get('scanModel').then((s: Setting | undefined) => { if (s?.value) setScanModel(s.value) })
     db.settings.get('insightModel').then((s: Setting | undefined) => { if (s?.value) setInsightModel(s.value) })
     getModelForRole('output').then(setOutputModel)
@@ -87,6 +92,12 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
     await storeApiKey(apiKey)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function saveMsApiKey() {
+    await storeMsApiKey(msApiKey)
+    setMsSaved(true)
+    setTimeout(() => setMsSaved(false), 2000)
   }
 
   async function handleModelChange(id: string) {
@@ -263,6 +274,45 @@ export function SettingsPanel({ mode, setTheme }: SettingsPanelProps) {
         <p className="text-xs text-ink-3 mt-2">
           Stored locally in Chrome — never leaves your browser. Use <strong>Show</strong> to confirm the full key
           matches the one in your Anthropic console.
+        </p>
+
+        <label className="block text-xs text-ink-3 mt-4 mb-1.5">
+          Milliseconds API key (optional — enables faster typed decisions for scan, source gating, and source-type detection)
+        </label>
+        <div className="relative mb-2">
+          <input
+            type={showMsKey ? 'text' : 'password'}
+            value={msApiKey}
+            onChange={(e) => setMsApiKey(e.target.value)}
+            placeholder="sk-ms-..."
+            spellCheck={false}
+            autoComplete="off"
+            className="w-full bg-surface-2 border border-line focus:border-line-strong rounded-lg px-3 py-2 pr-14
+              text-sm text-ink placeholder-ink-3 outline-none transition-colors font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShowMsKey((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-3 hover:text-ink-2"
+          >
+            {showMsKey ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={saveMsApiKey}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-on-accent text-xs rounded-lg transition-colors font-medium">
+            {msSaved && <Icons.check size={14} />}
+            {msSaved ? 'Saved' : 'Save Key'}
+          </button>
+          <button
+            onClick={() => { setMsApiKey(''); setShowMsKey(false); void storeMsApiKey('') }}
+            className="px-3 py-1.5 text-xs text-ink-3 hover:text-red-400 border border-line rounded-lg transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+        <p className="text-xs text-ink-3 mt-2">
+          Also stored locally. Leave blank to keep using the Anthropic-only pipeline.
         </p>
 
         <label className="block text-xs text-ink-3 mt-4 mb-1.5">Scan model</label>

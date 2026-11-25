@@ -4,6 +4,11 @@ import { getRejections } from '@/db/suggestions'
 import type { ResearchItem, Theme } from '@/types'
 import { DEFAULT_ROLE_MODEL } from './models'
 import { getApiKey as readApiKey } from './apiKey'
+import { getDecisionMachine } from './ms/client'
+import { assignBatched } from './ms/assign'
+import {
+  themeAssignmentStatement,
+} from './ms/constants'
 
 export const DEFAULT_SCAN_MODEL = DEFAULT_ROLE_MODEL.scan
 const MAX_CONTENT_CHARS = 800
@@ -126,7 +131,8 @@ interface RejectionContext {
 function buildPrompt(
   items: ScanInputItem[],
   themes: ScanInputTheme[],
-  rejections: RejectionContext
+  rejections: RejectionContext,
+  proposeOnly = false
 ): string {
   const themesBlock = themes.length === 0
     ? '(no existing themes yet — focus entirely on proposing new ones)'
@@ -145,15 +151,20 @@ function buildPrompt(
     return lines.join('\n')
   }).join('\n\n')
 
-  const lines = [
-    'You are organizing a personal research corpus. Two jobs:',
-    '',
-    '1. ASSIGN — for each item that clearly belongs in an existing theme, return an assignment. Be selective; confidence ≥ 0.6 only. Multiple themes per item are allowed.',
-    '2. PROPOSE — when you see a recurring topic across 2+ items that no existing theme covers well, propose a new theme. Skip one-offs.',
-    '',
-    'Existing themes:',
-    themesBlock,
-  ]
+  const lines: string[] = []
+  if (proposeOnly) {
+    lines.push('You are organizing a personal research corpus. Your only job is to PROPOSE new themes.')
+    lines.push('')
+    lines.push('When you see a recurring topic across 2+ items that no existing theme covers well, propose a new theme. Skip one-offs. Return an EMPTY assignments array — a separate pipeline handles item→theme tagging.')
+  } else {
+    lines.push('You are organizing a personal research corpus. Two jobs:')
+    lines.push('')
+    lines.push('1. ASSIGN — for each item that clearly belongs in an existing theme, return an assignment. Be selective; confidence ≥ 0.6 only. Multiple themes per item are allowed.')
+    lines.push('2. PROPOSE — when you see a recurring topic across 2+ items that no existing theme covers well, propose a new theme. Skip one-offs.')
+  }
+  lines.push('')
+  lines.push('Existing themes:')
+  lines.push(themesBlock)
 
   if (rejections.proposedNamesLower.length > 0) {
     lines.push('')
@@ -161,7 +172,7 @@ function buildPrompt(
     lines.push(rejections.proposedNamesLower.map((n) => `- ${n}`).join('\n'))
   }
 
-  if (rejections.assignmentPairs.length > 0) {
+  if (!proposeOnly && rejections.assignmentPairs.length > 0) {
     lines.push('')
     lines.push('Do NOT suggest these specific item→theme assignments (the user rejected them):')
     lines.push(rejections.assignmentPairs.map(([i, t]) => `- item ${i} → theme ${t}`).join('\n'))
@@ -171,9 +182,41 @@ function buildPrompt(
   lines.push('Items to organize:')
   lines.push(itemsBlock)
   lines.push('')
-  lines.push('Call the record_suggestions tool with both arrays. If nothing fits a bucket, return an empty array for it.')
+  if (proposeOnly) {
+    lines.push('Call the record_suggestions tool. Return an empty assignments array; put any new theme ideas in proposals.')
+  } else {
+    lines.push('Call the record_suggestions tool with both arrays. If nothing fits a bucket, return an empty array for it.')
+  }
 
   return lines.join('\n')
+}
+
+/**
+ * Milliseconds-backed ASSIGN. Runs one batched `yesNo(texts, statements)` per
+ * chunk of items: statements are one per theme ("The capture is about <name>…")
+ * and we convert every (item, theme) yes answer whose probability clears
+ * MIN_ASSIGN_PROBABILITY into a RawAssignment. Returns null when no ms key is
+ * set OR when the call errors — the caller then falls back to Claude for ASSIGN.
+ */
+async function assignWithMs(
+  items: ResearchItem[],
+  themes: ScanInputTheme[]
+): Promise<RawAssignment[] | null> {
+  if (themes.length === 0 || items.length === 0) return []
+  const dm = await getDecisionMachine()
+  if (!dm) return null
+
+  const inputs = prepareItemsForScan(items)
+  try {
+    return await assignBatched(
+      inputs.map(it => ({ id: it.id, text: it.notes ? `${it.snippet}\n\nNotes: ${it.notes}` : it.snippet })),
+      themes.map(t => ({ id: t.id, statement: themeAssignmentStatement(t.name, t.description) })),
+      (texts, statements) => dm.yesNo(texts, statements)
+    )
+  } catch (err) {
+    console.warn('[scan] milliseconds ASSIGN failed, falling back to Claude:', err)
+    return null
+  }
 }
 
 export async function scanCorpus(
@@ -200,6 +243,11 @@ export async function scanCorpus(
     description: t.description ?? '',
   }))
 
+  // Try the ms-backed ASSIGN first — one batched yes-no per chunk. Null means
+  // either no key or an error; in that case Claude handles ASSIGN as before.
+  const msAssignments = await assignWithMs(items, inputThemes)
+  const proposeOnly = msAssignments !== null
+
   // Scan in small batches. A single call over a large corpus (100+ items, dozens
   // of themes) makes the model return an empty tool call; ~20-item batches keep
   // each prompt focused enough for the model to actually do the work.
@@ -209,7 +257,7 @@ export async function scanCorpus(
     batches.push(items.slice(i, i + BATCH_SIZE))
   }
 
-  const rawAssignments: RawAssignment[] = []
+  const rawAssignments: RawAssignment[] = msAssignments ?? []
   const rawProposals: Array<{ name?: string; description?: string; supportingItemIds?: number[] }> = []
 
   for (const batch of batches) {
@@ -221,7 +269,7 @@ export async function scanCorpus(
         max_tokens: 8192,
         tools: [tool],
         tool_choice: { type: 'tool', name: 'record_suggestions' },
-        messages: [{ role: 'user', content: buildPrompt(inputItems, inputThemes, rejections) }],
+        messages: [{ role: 'user', content: buildPrompt(inputItems, inputThemes, rejections, proposeOnly) }],
       })
     } catch (err) {
       throw new ScanError(
@@ -235,7 +283,10 @@ export async function scanCorpus(
     )
     if (!toolBlock) continue
     const raw = toolBlock.input as Partial<ScanResult>
-    if (Array.isArray(raw.assignments)) rawAssignments.push(...(raw.assignments as RawAssignment[]))
+    // Only trust Claude's assignments when the ms path didn't produce them.
+    if (!proposeOnly && Array.isArray(raw.assignments)) {
+      rawAssignments.push(...(raw.assignments as RawAssignment[]))
+    }
     if (Array.isArray(raw.proposals)) rawProposals.push(...(raw.proposals as typeof rawProposals))
   }
 

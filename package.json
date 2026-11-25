@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
+    "@cloudraker/milliseconds": "^0.2.2",
     "dexie": "^3.2.7",
     "dexie-react-hooks": "^1.1.7",
     "file-saver": "^2.0.5",

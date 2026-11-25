@@ -1,6 +1,13 @@
 import { db } from './schema'
 import type { ResearchItem, SourceType } from '@/types'
 import { deleteAttachmentsForItem } from './attachments'
+import { getDecisionMachine } from '@/ai/ms/client'
+import {
+  MS_SOURCE_TYPE_MIN_CONFIDENCE,
+  MS_SOURCE_TYPE_MIN_PROBABILITY,
+  MS_SOURCE_TYPE_SAMPLE_CHARS,
+  SOURCE_TYPE_LABELS,
+} from '@/ai/ms/constants'
 
 function domainFromUrl(url: string): string {
   try {
@@ -10,20 +17,59 @@ function domainFromUrl(url: string): string {
   }
 }
 
-function detectSourceType(url: string): SourceType {
+function hostnameRule(url: string): SourceType | null {
   try {
     const hostname = new URL(url).hostname.replace(/^www\./, '')
     if (hostname === 'mail.google.com') return 'newsletter'
     if (hostname === 'twitter.com' || hostname === 'x.com') return 'twitter'
     if (hostname === 'reddit.com' || hostname.endsWith('.reddit.com')) return 'reddit'
   } catch {}
-  return 'website'
+  return null
+}
+
+/**
+ * Detect the SourceType. Fast hostname rules short-circuit (no API call).
+ * When they miss, and a Milliseconds key is set, classify over the captured
+ * title + snippet to catch Substack/Beehiiv newsletters, product pages, and
+ * local notes that the hostname-only path flattens to 'website'. On no key
+ * or any error, keep the historical 'website' default.
+ */
+async function detectSourceType(url: string, pageTitle: string, rawContent: string): Promise<SourceType> {
+  const byHost = hostnameRule(url)
+  if (byHost !== null) return byHost
+
+  const dm = await getDecisionMachine()
+  if (!dm) return 'website'
+
+  // Include the URL so the 'internal' label's "no URL" marker actually
+  // discriminates — a first-person essay on the web would otherwise fire it.
+  const urlLine = url ? `URL: ${url}` : 'URL: (none — local note)'
+  const text = `${urlLine}\n${pageTitle || ''}\n\n${(rawContent || '').slice(0, MS_SOURCE_TYPE_SAMPLE_CHARS)}`.trim()
+  if (!text) return 'website'
+
+  try {
+    const result = await dm.classify(text, SOURCE_TYPE_LABELS)
+    // Gate on probability AND confidence — the SourceType labels overlap, so
+    // probability alone is thin. Confidence (1 − normalised entropy) catches
+    // the "two labels both scored high" split where the argmax is a coin toss.
+    if (
+      result.probability >= MS_SOURCE_TYPE_MIN_PROBABILITY &&
+      result.confidence >= MS_SOURCE_TYPE_MIN_CONFIDENCE
+    ) {
+      return result.label as SourceType
+    }
+    return 'website'
+  } catch (err) {
+    console.warn('[items] milliseconds source-type classify failed, falling back to website:', err)
+    return 'website'
+  }
 }
 
 export async function addItem(
   partial: Pick<ResearchItem, 'rawContent' | 'url' | 'pageTitle' | 'date'> & { sourceSender?: string }
 ): Promise<number> {
   const now = Date.now()
+  const sourceType = await detectSourceType(partial.url, partial.pageTitle, partial.rawContent)
   return db.items.add({
     content: partial.rawContent,
     rawContent: partial.rawContent,
@@ -32,7 +78,7 @@ export async function addItem(
     pageTitle: partial.pageTitle,
     date: partial.date,
     notes: '',
-    sourceType: detectSourceType(partial.url),
+    sourceType,
     sourceSender: partial.sourceSender ?? '',
     themeIds: [],
     createdAt: now,
